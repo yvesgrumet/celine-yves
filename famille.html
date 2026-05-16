@@ -252,7 +252,10 @@ html,body{
 
     <div class="form-row">
       <label class="form-label">Date de naissance</label>
-      <input id="f-naissance" class="form-input" type="date">
+      <input id="f-naissance" class="form-input" type="text"
+        placeholder="JJ/MM/AAAA — ex : 15/03/1985"
+        maxlength="10"
+        oninput="formatDateFamille(this)">
     </div>
 
     <div class="form-row">
@@ -327,7 +330,26 @@ var famille  = {};
 var editKey  = null;
 var lastDel  = null;
 
-/* ── Couleurs ──────────────────────────────── */
+/* ── Format date naissance ────────────────── */
+function formatDateFamille(inp) {
+  let v = inp.value.replace(/\D/g,'');
+  if (v.length > 2) v = v.slice(0,2)+'/'+v.slice(2);
+  if (v.length > 5) v = v.slice(0,5)+'/'+v.slice(5);
+  if (v.length > 10) v = v.slice(0,10);
+  inp.value = v;
+}
+function parseDateFamille(str) {
+  if (!str) return null;
+  const p = str.split('/');
+  if (p.length !== 3 || p[2].length !== 4) return null;
+  return `${p[2]}-${p[1]}-${p[0]}`;
+}
+function afficherDateFamille(iso) {
+  if (!iso) return '';
+  const p = iso.split('-');
+  if (p.length !== 3) return iso;
+  return `${p[2]}/${p[1]}/${p[0]}`;
+}
 var COULEURS = [
   '#9b6fc4','#3a6bbf','#c46f9b','#2e7d52',
   '#c4a46f','#c46f6f','#6fc4c4','#a46fc4','#c9963a'
@@ -477,7 +499,7 @@ function ouvrirFormulaire(key) {
   document.getElementById('f-prenom').value    = p.prenom       || '';
   document.getElementById('f-nom').value       = p.nom          || '';
   document.getElementById('f-role').value      = p.role         || '';
-  document.getElementById('f-naissance').value = p.dateNaissance|| '';
+  document.getElementById('f-naissance').value = afficherDateFamille(p.dateNaissance||'');
   document.getElementById('f-tel').value       = p.tel          || '';
   document.getElementById('f-email').value     = p.email        || '';
   document.getElementById('f-note').value      = p.note         || '';
@@ -498,7 +520,7 @@ function sauvegarderFiche() {
     prenom:        prenom,
     nom:           document.getElementById('f-nom').value.trim()       || null,
     role:          document.getElementById('f-role').value.trim()      || null,
-    dateNaissance: document.getElementById('f-naissance').value        || null,
+    dateNaissance: parseDateFamille(document.getElementById('f-naissance').value.trim()) || null,
     tel:           document.getElementById('f-tel').value.trim()       || null,
     email:         document.getElementById('f-email').value.trim()     || null,
     note:          document.getElementById('f-note').value.trim()      || null,

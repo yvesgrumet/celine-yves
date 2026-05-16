@@ -191,11 +191,18 @@
     const today = todayStr();
     const dans7 = new Date(); dans7.setDate(dans7.getDate()+7);
     const fin7  = dans7.toISOString().slice(0,10);
+    // Catégories récurrentes à exclure des prochains événements
+    const CATS_RECURRENTES = ["travail","sport","valentin","ecole"];
     const r = ref(db,"evenements");
     onValue(r, snap => {
       const data = snap.val() || {};
       const prochains = Object.entries(data)
-        .filter(([k,v]) => v.date > today && v.date <= fin7 && !v.supprime)
+        .filter(([k,v]) =>
+          v.date > today &&
+          v.date <= fin7 &&
+          !v.supprime &&
+          !CATS_RECURRENTES.includes(v.categorie)
+        )
         .map(([k,v]) => v)
         .sort((a,b) => a.date.localeCompare(b.date));
 

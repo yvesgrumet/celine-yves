@@ -261,7 +261,10 @@ html,body{
     <!-- Date de naissance -->
     <div class="form-row">
       <label class="form-label">Date de naissance</label>
-      <input id="c-naissance" class="form-input" type="date">
+      <input id="c-naissance" class="form-input" type="text"
+        placeholder="JJ/MM/AAAA — ex : 06/08/1977"
+        maxlength="10"
+        oninput="formatDateNaissance(this)">
     </div>
 
     <!-- Note -->
@@ -346,7 +349,33 @@ db.ref("contacts").on("value", function(s) {
   renderContacts();
 });
 
-/* ── Barre alphabétique ────────────────────── */
+/* ── Format date naissance ───────────────── */
+function formatDateNaissance(inp) {
+  // Auto-insère les / pendant la saisie : 06 → 06/ → 06/08 → 06/08/
+  let v = inp.value.replace(/\D/g,'');
+  if (v.length > 2)  v = v.slice(0,2)+'/'+v.slice(2);
+  if (v.length > 5)  v = v.slice(0,5)+'/'+v.slice(5);
+  if (v.length > 10) v = v.slice(0,10);
+  inp.value = v;
+}
+
+function parseDateNaissance(str) {
+  // Convertit JJ/MM/AAAA → AAAA-MM-JJ pour Firebase
+  if (!str) return null;
+  const parts = str.split('/');
+  if (parts.length !== 3) return null;
+  const [jj, mm, aaaa] = parts;
+  if (jj.length !== 2 || mm.length !== 2 || aaaa.length !== 4) return null;
+  return `${aaaa}-${mm}-${jj}`;
+}
+
+function afficherDateNaissance(isoStr) {
+  // Convertit AAAA-MM-JJ → JJ/MM/AAAA pour l'affichage
+  if (!isoStr) return '';
+  const parts = isoStr.split('-');
+  if (parts.length !== 3) return isoStr;
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+}
 function buildAlpha() {
   var lettres = new Set();
   Object.values(allContacts).forEach(function(c) {
@@ -483,7 +512,7 @@ function ouvrirEdition(key) {
   document.getElementById('c-prenom').value    = c.prenom       || '';
   document.getElementById('c-nom').value       = c.nom          || '';
   document.getElementById('c-tel').value       = c.tel          || '';
-  document.getElementById('c-naissance').value = c.dateNaissance|| '';
+  document.getElementById('c-naissance').value = afficherDateNaissance(c.dateNaissance);
   document.getElementById('c-note').value      = c.note         || '';
   document.getElementById('modal-overlay').style.display = 'flex';
 }
@@ -500,7 +529,7 @@ function sauvegarderContact() {
     prenom:        prenom,
     nom:           document.getElementById('c-nom').value.trim() || null,
     tel:           document.getElementById('c-tel').value.trim() || null,
-    dateNaissance: document.getElementById('c-naissance').value || null,
+    dateNaissance: parseDateNaissance(document.getElementById('c-naissance').value.trim()) || null,
     note:          document.getElementById('c-note').value.trim() || null,
     modifiedAt:    new Date().toISOString(),
     supprime:      false

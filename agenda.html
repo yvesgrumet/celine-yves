@@ -133,15 +133,14 @@ function renderCalendar() {
   const y = viewDate.getFullYear();
   const m = viewDate.getMonth();
 
-  document.getElementById("cal-titre").textContent =
-    `${MOIS_LONG[m]} ${y}`;
+  document.getElementById("cal-titre").textContent = `${MOIS_LONG[m]} ${y}`;
 
-  const firstDayRaw = new Date(y, m, 1).getDay(); // 0=dim
-  const lastDate    = new Date(y, m+1, 0).getDate();
-  const today       = new Date().toISOString().slice(0,10);
-  const startOffset = firstDayRaw === 0 ? 6 : firstDayRaw - 1; // lun-dim
+  const firstDayJS = new Date(y, m, 1).getDay(); // 0=dim,1=lun,...,6=sam
+  // Convertir en offset lun-dim : lun=0, mar=1,..., dim=6
+  const startOffset = firstDayJS === 0 ? 6 : firstDayJS - 1;
+  const lastDate = new Date(y, m+1, 0).getDate();
+  const today = new Date().toISOString().slice(0,10);
 
-  // Compter événements par jour
   const evParJour = {};
   Object.values(allEvents).forEach(ev => {
     if (!ev.supprime && ev.date && ev.date.startsWith(`${y}-${String(m+1).padStart(2,"0")}`)) {
@@ -149,27 +148,25 @@ function renderCalendar() {
     }
   });
 
-  // Construire les cellules jour par jour, avec injection du n° semaine chaque lundi
   let html = "";
-  // Cases vides avant le 1er + éventuelle cellule n° sem de la 1ère rangée
-  let col = startOffset; // position dans la ligne (0=lun … 6=dim)
+  let col = 0; // position dans la rangée (0=lun...6=dim)
 
-  // Si le 1er n'est pas un lundi, on affiche le n° de semaine de la semaine précédente
-  // On calcule le lundi qui précède le 1er
-  const preLundi = new Date(y, m, 1 - startOffset);
+  // Première rangée : n° de semaine du lundi précédant le 1er
   if (startOffset > 0) {
+    const preLundi = new Date(y, m, 1 - startOffset);
     html += `<div class="cal-sem">${getNumSemaine(preLundi)}</div>`;
     for (let i = 0; i < startOffset; i++) html += `<div class="cal-cell vide"></div>`;
+    col = startOffset;
   }
 
   for (let d = 1; d <= lastDate; d++) {
-    // Lundi → afficher le n° de semaine avant la case
+    // Nouveau lundi → insérer n° de semaine
     if (col % 7 === 0) {
       const dateObj = new Date(y, m, d);
       html += `<div class="cal-sem">${getNumSemaine(dateObj)}</div>`;
     }
 
-    const dateStr    = `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    const dateStr = `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
     const isToday    = dateStr === today;
     const isSelected = dateStr === selectedDay;
     const dateObj    = new Date(y, m, d);
@@ -373,10 +370,13 @@ const JOURS_PLANNING = [
 ];
 
 function lundoDeSemaine(annee, semaine) {
+  // Algorithme ISO 8601 fiable
+  // Le 4 janvier est toujours dans la semaine 1
   const jan4 = new Date(annee, 0, 4);
-  const jourSem = jan4.getDay() || 7;
-  const lundi1 = new Date(jan4);
-  lundi1.setDate(jan4.getDate() - jourSem + 1);
+  // Trouver le lundi de la semaine contenant le 4 janvier
+  const jourSem = jan4.getDay() || 7; // 1=lun ... 7=dim
+  const lundi1 = new Date(annee, 0, 4 - (jourSem - 1));
+  // Ajouter (semaine-1) * 7 jours
   const lundi = new Date(lundi1);
   lundi.setDate(lundi1.getDate() + (semaine - 1) * 7);
   return lundi;
