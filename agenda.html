@@ -1,0 +1,1776 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Agenda — Céline & Yves</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
+<script type="module">
+import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, onValue, push, set, remove, update, get }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyB1cKDJSyHoUcq07yL8k7t_q3WNZ4ZaBJw",
+  authDomain: "celine-yves.firebaseapp.com",
+  databaseURL: "https://celine-yves-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "celine-yves",
+  storageBucket: "celine-yves.firebasestorage.app",
+  messagingSenderId: "1024885005035",
+  appId: "1:1024885005035:web:fd92a0a8fc07eb78a17cae"
+};
+
+const app = initializeApp(firebaseConfig);
+const db  = getDatabase(app);
+
+/* ══════════════════════════════════════════════
+   CONSTANTES
+══════════════════════════════════════════════ */
+const JOURS_COURT = ["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];
+const JOURS_LONG  = ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
+const MOIS_LONG   = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+const QUI_LIST    = ["Céline","Yves","Céline & Yves","Flora","Manon","Mendy"];
+const CAT_LIST    = [
+  {val:"rdv",       label:"🏥 Rendez-vous"},
+  {val:"famille",   label:"👨‍👩‍👧 Famille"},
+  {val:"sport",     label:"⚽ Sport"},
+  {val:"vacances",  label:"🏖️ Vacances"},
+  {val:"travail",   label:"💼 Travail"},
+  {val:"ecole",     label:"🎒 École"},
+  {val:"anniversaire",label:"🎂 Anniversaire"},
+  {val:"autre",     label:"✏️ Autre"}
+];
+const CAT_COULEURS = {
+  rdv:"#9b6fc4", famille:"#c46f9b", sport:"#6f9bc4",
+  vacances:"#6fc49b", travail:"#c4a46f", ecole:"#a46fc4",
+  anniversaire:"#c46f6f", autre:"#888"
+};
+
+/* ══════════════════════════════════════════════
+   FÊTES
+══════════════════════════════════════════════ */
+const FETES = {
+  "01-01":"Jour de l'An","01-06":"Melchior","01-13":"Yvette","01-17":"Antoine",
+  "01-20":"Sébastien","01-21":"Agnès","01-22":"Vincent","01-24":"François de Sales",
+  "01-25":"Conversion de Paul","01-26":"Timothée","01-27":"Angèle","01-28":"Thomas d'Aquin",
+  "02-02":"Présentation","02-03":"Blaise","02-05":"Agathe","02-11":"N.-D. de Lourdes",
+  "02-14":"Valentin","02-22":"Isabelle","03-08":"Jean de Dieu","03-17":"Patrick",
+  "03-19":"Joseph","03-25":"Annonciation","04-23":"Georges","04-25":"Marc",
+  "05-01":"Fête du Travail","05-03":"Philippe","05-25":"Bède","06-13":"Antoine de Padoue",
+  "06-21":"Rodolphe","06-24":"Jean-Baptiste","06-29":"Pierre","07-04":"Florent",
+  "07-14":"Fête Nationale","07-22":"Marie-Madeleine","07-25":"Jacques","07-26":"Anne",
+  "08-06":"Transfiguration","08-10":"Laurent","08-15":"Assomption","08-24":"Barthélemy",
+  "08-28":"Augustin","09-08":"Nativité de Marie","09-29":"Michel","10-01":"Thérèse",
+  "10-04":"François","10-31":"Quentin","11-01":"Toussaint","11-02":"Défunts",
+  "11-11":"Armistice","11-25":"Catherine","12-04":"Barbara","12-06":"Nicolas",
+  "12-08":"Immaculée Conception","12-24":"Réveillon","12-25":"Noël","12-26":"Étienne","12-31":"Sylvestre"
+};
+
+function getFete(dateStr) {
+  const mmdd = dateStr.slice(5);
+  return FETES[mmdd] || null;
+}
+
+/* ══════════════════════════════════════════════
+   SEMAINES VALENTIN (à adapter selon les années)
+   Saisir les semaines où Valentin est chez Cédric
+══════════════════════════════════════════════ */
+const SEMAINES_VALENTIN = [
+  // Format: "YYYY-Wnn" (numéro de semaine ISO)
+  // Exemples — à adapter avec les vraies dates
+  "2025-W02","2025-W04","2025-W06","2025-W08","2025-W10","2025-W12",
+  "2025-W14","2025-W16","2025-W18","2025-W20","2025-W22","2025-W24",
+  "2025-W26","2025-W28","2025-W30","2025-W32","2025-W34","2025-W36",
+  "2025-W38","2025-W40","2025-W42","2025-W44","2025-W46","2025-W48",
+  "2025-W50","2025-W52",
+  "2026-W02","2026-W04","2026-W06","2026-W08","2026-W10","2026-W12",
+  "2026-W14","2026-W16","2026-W18","2026-W20"
+];
+
+function getISOWeek(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const day = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  const wk = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  return `${d.getUTCFullYear()}-W${String(wk).padStart(2,"0")}`;
+}
+
+function isValentinWeek(date) {
+  return SEMAINES_VALENTIN.includes(getISOWeek(date));
+}
+
+/* ══════════════════════════════════════════════
+   ÉTAT GLOBAL
+══════════════════════════════════════════════ */
+let viewDate    = new Date();
+let selectedDay = null;
+let allEvents   = {};
+let editKey     = null;
+let lastDeleted = null;
+let selectedQui = new Set(["Céline","Yves"]);
+let planDeb     = { annee:0, semaine:0 };
+let planFin     = { annee:0, semaine:0 };
+let planTravailSaufSems = new Set();
+
+/* ══════════════════════════════════════════════
+   FIREBASE LISTENER
+══════════════════════════════════════════════ */
+onValue(ref(db,"evenements"), snap => {
+  allEvents = snap.val() || {};
+  renderCalendar();
+  if (selectedDay) renderDayDetail(selectedDay);
+  renderMonthList();
+});
+
+/* ══════════════════════════════════════════════
+   CALENDRIER MENSUEL
+══════════════════════════════════════════════ */
+function renderCalendar() {
+  const y = viewDate.getFullYear();
+  const m = viewDate.getMonth();
+
+  document.getElementById("cal-titre").textContent =
+    `${MOIS_LONG[m]} ${y}`;
+
+  const firstDayRaw = new Date(y, m, 1).getDay(); // 0=dim
+  const lastDate    = new Date(y, m+1, 0).getDate();
+  const today       = new Date().toISOString().slice(0,10);
+  const startOffset = firstDayRaw === 0 ? 6 : firstDayRaw - 1; // lun-dim
+
+  // Compter événements par jour
+  const evParJour = {};
+  Object.values(allEvents).forEach(ev => {
+    if (!ev.supprime && ev.date && ev.date.startsWith(`${y}-${String(m+1).padStart(2,"0")}`)) {
+      evParJour[ev.date] = (evParJour[ev.date] || 0) + 1;
+    }
+  });
+
+  // Construire les cellules jour par jour, avec injection du n° semaine chaque lundi
+  let html = "";
+  // Cases vides avant le 1er + éventuelle cellule n° sem de la 1ère rangée
+  let col = startOffset; // position dans la ligne (0=lun … 6=dim)
+
+  // Si le 1er n'est pas un lundi, on affiche le n° de semaine de la semaine précédente
+  // On calcule le lundi qui précède le 1er
+  const preLundi = new Date(y, m, 1 - startOffset);
+  if (startOffset > 0) {
+    html += `<div class="cal-sem">${getNumSemaine(preLundi)}</div>`;
+    for (let i = 0; i < startOffset; i++) html += `<div class="cal-cell vide"></div>`;
+  }
+
+  for (let d = 1; d <= lastDate; d++) {
+    // Lundi → afficher le n° de semaine avant la case
+    if (col % 7 === 0) {
+      const dateObj = new Date(y, m, d);
+      html += `<div class="cal-sem">${getNumSemaine(dateObj)}</div>`;
+    }
+
+    const dateStr    = `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    const isToday    = dateStr === today;
+    const isSelected = dateStr === selectedDay;
+    const dateObj    = new Date(y, m, d);
+    const isValentin = isValentinWeek(dateObj);
+    const nbEv       = evParJour[dateStr] || 0;
+    const fete       = getFete(dateStr);
+
+    let cls = "cal-cell";
+    if (isToday)    cls += " today";
+    if (isSelected) cls += " selected";
+    if (isValentin) cls += " valentin";
+
+    html += `<div class="${cls}" data-date="${dateStr}" onclick="selectDay('${dateStr}')">
+      <span class="cal-num">${d}</span>
+      ${fete ? `<span class="cal-fete">${fete}</span>` : ""}
+      ${nbEv > 0 ? `<span class="cal-dot">${nbEv > 1 ? nbEv : ""}</span>` : ""}
+    </div>`;
+
+    col++;
+  }
+
+  document.getElementById("cal-grille").innerHTML = html;
+}
+
+function getNumSemaine(date) {
+  return parseInt(getISOWeek(date).split("-W")[1]);
+}
+
+/* ══════════════════════════════════════════════
+   LISTE DES ACTIVITÉS DU MOIS (sous le calendrier)
+══════════════════════════════════════════════ */
+function renderMonthList() {
+  const y = viewDate.getFullYear();
+  const m = viewDate.getMonth();
+  const prefix = `${y}-${String(m+1).padStart(2,"0")}`;
+
+  const evMois = Object.entries(allEvents)
+    .filter(([k,v]) => !v.supprime && v.date && v.date.startsWith(prefix))
+    .sort((a,b) => {
+      const da = a[1].date + (a[1].heure||"99:99");
+      const db2 = b[1].date + (b[1].heure||"99:99");
+      return da.localeCompare(db2);
+    });
+
+  const el = document.getElementById("mois-liste");
+  if (evMois.length === 0) {
+    el.innerHTML = `<p class="rien">Aucun événement ce mois-ci</p>`;
+    return;
+  }
+
+  let html = "";
+  let lastDate = "";
+  evMois.forEach(([key, ev]) => {
+    if (ev.date !== lastDate) {
+      const d = new Date(ev.date + "T12:00:00");
+      html += `<div class="ml-date-header">${JOURS_LONG[d.getDay()]} ${d.getDate()} ${MOIS_LONG[d.getMonth()]}</div>`;
+      lastDate = ev.date;
+    }
+    const couleur = CAT_COULEURS[ev.categorie] || "#888";
+    const h = ev.heure ? `<span class="ml-heure">${ev.heure}</span>` : "";
+    const q = ev.qui   ? `<span class="ml-qui">${ev.qui}</span>` : "";
+    html += `
+      <div class="ml-item" onclick="selectDay('${ev.date}')">
+        <span class="ml-barre" style="background:${couleur}"></span>
+        <div class="ml-corps">
+          <div class="ml-titre-ligne">${h}<span class="ml-titre">${ev.titre}</span>${q}</div>
+          ${ev.note ? `<div class="ml-note">${ev.note}</div>` : ""}
+        </div>
+        <div class="ml-actions">
+          <button class="btn-icon" onclick="event.stopPropagation();ouvrirEdition('${key}')" title="Modifier">✏️</button>
+          <button class="btn-icon" onclick="event.stopPropagation();supprimerEv('${key}')" title="Supprimer">🗑️</button>
+        </div>
+      </div>`;
+  });
+
+  el.innerHTML = html;
+}
+
+/* ══════════════════════════════════════════════
+   VUE JOURNALIÈRE (détail d'un jour)
+══════════════════════════════════════════════ */
+window.selectDay = function(dateStr) {
+  selectedDay = dateStr;
+  renderCalendar();
+  renderDayDetail(dateStr);
+  document.getElementById("panneau-jour").style.display = "block";
+  document.getElementById("panneau-jour").scrollIntoView({behavior:"smooth", block:"nearest"});
+};
+
+function renderDayDetail(dateStr) {
+  const d = new Date(dateStr + "T12:00:00");
+  const fete = getFete(dateStr);
+  const isValentin = isValentinWeek(d);
+
+  // Anniversaires du jour
+  const annivs = [];
+  onValue(ref(db,"contacts"), snap => {
+    const contacts = snap.val() || {};
+    Object.values(contacts).forEach(c => {
+      if (c.dateNaissance && c.dateNaissance.slice(5) === dateStr.slice(5))
+        annivs.push((c.prenom||"") + " " + (c.nom||""));
+    });
+  }, {onlyOnce:true});
+
+  let headerExtra = "";
+  if (fete)     headerExtra += `<span class="jour-fete">✨ ${fete}</span>`;
+  if (isValentin) headerExtra += `<span class="jour-valentin">💚 Semaine Valentin chez Cédric</span>`;
+  annivs.forEach(a => headerExtra += `<span class="jour-anniv">🎂 ${a}</span>`);
+
+  document.getElementById("jour-titre").innerHTML =
+    `${JOURS_LONG[d.getDay()]} ${d.getDate()} ${MOIS_LONG[d.getMonth()]} ${d.getFullYear()}`;
+  document.getElementById("jour-extra").innerHTML = headerExtra;
+
+  // Événements du jour
+  const evJour = Object.entries(allEvents)
+    .filter(([k,v]) => !v.supprime && v.date === dateStr)
+    .sort((a,b) => (a[1].heure||"99:99").localeCompare(b[1].heure||"99:99"));
+
+  const el = document.getElementById("jour-events");
+  if (evJour.length === 0) {
+    el.innerHTML = `<p class="rien">Rien ce jour-là — <button class="lien-btn" onclick="ouvrirFormulaire('${dateStr}')">+ Ajouter</button></p>`;
+    return;
+  }
+
+  el.innerHTML = evJour.map(([key, ev]) => {
+    const couleur = CAT_COULEURS[ev.categorie] || "#888";
+    const catLabel = CAT_LIST.find(c => c.val === ev.categorie)?.label || "";
+    return `
+    <div class="jour-ev-item">
+      <div class="jour-ev-heure">${ev.heure || "—"}</div>
+      <div class="jour-ev-corps" style="border-left:3px solid ${couleur}">
+        <div class="jour-ev-titre">${ev.titre}</div>
+        ${ev.qui      ? `<div class="jour-ev-meta">👤 ${ev.qui}</div>` : ""}
+        ${catLabel    ? `<div class="jour-ev-meta">${catLabel}</div>` : ""}
+        ${ev.note     ? `<div class="jour-ev-note">${ev.note}</div>` : ""}
+        <div class="jour-ev-btns">
+          <button class="btn-small" onclick="ouvrirEdition('${key}')">✏️ Modifier</button>
+          <button class="btn-small rouge" onclick="supprimerEv('${key}')">🗑️ Supprimer</button>
+        </div>
+      </div>
+    </div>`;
+  }).join("") +
+  `<button class="btn-add-jour" onclick="ouvrirFormulaire('${dateStr}')">+ Ajouter un événement ce jour</button>`;
+}
+
+/* ══════════════════════════════════════════════
+   NAVIGATION MOIS
+══════════════════════════════════════════════ */
+window.moisPrec = function() {
+  viewDate.setMonth(viewDate.getMonth() - 1);
+  renderCalendar();
+  renderMonthList();
+  fermerJour();
+};
+window.moisSuiv = function() {
+  viewDate.setMonth(viewDate.getMonth() + 1);
+  renderCalendar();
+  renderMonthList();
+  fermerJour();
+};
+function fermerJour() {
+  selectedDay = null;
+  document.getElementById("panneau-jour").style.display = "none";
+}
+
+/* ══════════════════════════════════════════════
+   LISTE DES PERSONNES
+══════════════════════════════════════════════ */
+const PERSONNES_GROUPES = [
+  { groupe: "Céline", membres: ["Céline","Flora","Valentin"] },
+  { groupe: "Yves",   membres: ["Yves","Manon","Mendy"] }
+];
+
+function renderQuiButtons() {
+  const grid = document.getElementById("qui-grid");
+  grid.innerHTML = PERSONNES_GROUPES.map(g => `
+    <div class="qui-groupe">
+      <div class="qui-groupe-label">${g.groupe}</div>
+      <div class="qui-groupe-membres">
+        ${g.membres.map(p => {
+          const actif = selectedQui.has(p) ? "actif" : "";
+          return `<button type="button" class="qui-btn ${actif}" onclick="toggleQui('${p}')">${p}</button>`;
+        }).join("")}
+      </div>
+    </div>`).join("");
+}
+
+window.toggleQui = function(p) {
+  if (selectedQui.has(p)) selectedQui.delete(p);
+  else selectedQui.add(p);
+  renderQuiButtons();
+};
+
+/* ══════════════════════════════════════════════
+   PLANNING TRAVAIL — PLAGE DE SEMAINES
+══════════════════════════════════════════════ */
+const JOURS_PLANNING = [
+  {key:"lun",label:"Lun"},{key:"mar",label:"Mar"},{key:"mer",label:"Mer"},
+  {key:"jeu",label:"Jeu"},{key:"ven",label:"Ven"},
+  {key:"sam",label:"Sam"},{key:"dim",label:"Dim"}
+];
+
+function lundoDeSemaine(annee, semaine) {
+  const jan4 = new Date(annee, 0, 4);
+  const jourSem = jan4.getDay() || 7;
+  const lundi1 = new Date(jan4);
+  lundi1.setDate(jan4.getDate() - jourSem + 1);
+  const lundi = new Date(lundi1);
+  lundi.setDate(lundi1.getDate() + (semaine - 1) * 7);
+  return lundi;
+}
+function addJours(date, n) { const d = new Date(date); d.setDate(d.getDate()+n); return d; }
+function dateToStr(d) { return d.toISOString().slice(0,10); }
+function semaineActuelle() {
+  const w = getISOWeek(new Date()).split("-W");
+  return { annee: parseInt(w[0]), semaine: parseInt(w[1]) };
+}
+function fmtDate(d) { return `${d.getDate()}/${d.getMonth()+1}/${d.getFullYear()}`; }
+
+function majLabelsSemaines() {
+  const ldeb = lundoDeSemaine(planDeb.annee, planDeb.semaine);
+  const ldim_deb = addJours(ldeb, 6);
+  const lfin = lundoDeSemaine(planFin.annee, planFin.semaine);
+  const ldim_fin = addJours(lfin, 6);
+  const el1 = document.getElementById("plan-label-deb");
+  const el2 = document.getElementById("plan-label-fin");
+  if (el1) el1.textContent = `Du ${fmtDate(ldeb)} au ${fmtDate(ldim_deb)}`;
+  if (el2) el2.textContent = `Du ${fmtDate(lfin)} au ${fmtDate(ldim_fin)}`;
+}
+
+window.changerSemaine = function(quel, delta) {
+  let s = quel === "deb" ? planDeb : planFin;
+  s.semaine += delta;
+  if (s.semaine < 1)  { s.annee--; s.semaine = 52; }
+  if (s.semaine > 53) { s.annee++; s.semaine = 1; }
+  document.getElementById(`plan-sem-${quel}`).value   = s.semaine;
+  document.getElementById(`plan-annee-${quel}`).value = s.annee;
+  majLabelsSemaines();
+};
+
+window.majSemainePlanning = function(quel) {
+  let s = quel === "deb" ? planDeb : planFin;
+  s.semaine = parseInt(document.getElementById(`plan-sem-${quel}`).value) || s.semaine;
+  s.annee   = parseInt(document.getElementById(`plan-annee-${quel}`).value) || s.annee;
+  majLabelsSemaines();
+};
+
+/* ══════════════════════════════════════════════
+   PICKER HEURE CUSTOM — spinner ▲/▼
+   Stockage : planHeures[jKey] = { deb:{h,m}, fin:{h,m} }
+══════════════════════════════════════════════ */
+const planHeures = {};
+JOURS_PLANNING.forEach(j => {
+  planHeures[j.key] = { deb:{h:8,m:0}, fin:{h:17,m:0} };
+});
+
+function hm(obj) {
+  return `${String(obj.h).padStart(2,"0")}:${String(obj.m).padStart(2,"0")}`;
+}
+
+// Incrémente h ou m de ±delta pour un picker (deb|fin) d'un jour (key)
+window.spinHeure = function(jKey, slot, part, delta) {
+  const obj = planHeures[jKey][slot];
+  if (part === "h") {
+    obj.h = (obj.h + delta + 24) % 24;
+  } else {
+    obj.m = (obj.m + delta + 60) % 60;
+  }
+  // Mettre à jour l'affichage
+  document.getElementById(`ph-${slot}-h-${jKey}`).textContent = String(obj.h).padStart(2,"0");
+  document.getElementById(`ph-${slot}-m-${jKey}`).textContent = String(obj.m).padStart(2,"0");
+  // Mettre à jour le champ hidden pour la lecture lors de la sauvegarde
+  const inp = document.getElementById(`ph-${slot}-val-${jKey}`);
+  if (inp) inp.value = hm(obj);
+};
+
+function pickerHeure(jKey, slot, label) {
+  const obj = planHeures[jKey][slot];
+  return `
+  <span class="plan-de">${label}</span>
+  <div class="h-picker">
+    <div class="h-col">
+      <button type="button" class="h-spin" onclick="spinHeure('${jKey}','${slot}','h',+1)">▲</button>
+      <span class="h-val" id="ph-${slot}-h-${jKey}">${String(obj.h).padStart(2,"0")}</span>
+      <button type="button" class="h-spin" onclick="spinHeure('${jKey}','${slot}','h',-1)">▼</button>
+    </div>
+    <span class="h-sep">:</span>
+    <div class="h-col">
+      <button type="button" class="h-spin" onclick="spinHeure('${jKey}','${slot}','m',+15)">▲</button>
+      <span class="h-val" id="ph-${slot}-m-${jKey}">${String(obj.m).padStart(2,"0")}</span>
+      <button type="button" class="h-spin" onclick="spinHeure('${jKey}','${slot}','m',-15)">▼</button>
+    </div>
+    <input type="hidden" id="ph-${slot}-val-${jKey}" value="${hm(obj)}">
+  </div>`;
+}
+
+function renderPlanningTravail() {
+  const sa = semaineActuelle();
+  if (!planDeb.annee) { planDeb = { ...sa }; }
+  if (!planFin.annee) { planFin = { ...sa }; }
+
+  document.getElementById("plan-sem-deb").value   = planDeb.semaine;
+  document.getElementById("plan-annee-deb").value = planDeb.annee;
+  document.getElementById("plan-sem-fin").value   = planFin.semaine;
+  document.getElementById("plan-annee-fin").value = planFin.annee;
+  majLabelsSemaines();
+
+  // Sauvegarder les états cochés avant re-render
+  const etatCoche = {};
+  JOURS_PLANNING.forEach(j => {
+    etatCoche[j.key] = document.getElementById(`pj-${j.key}`)?.checked || false;
+  });
+
+  const conteneur = document.getElementById("planning-jours");
+  conteneur.innerHTML = JOURS_PLANNING.map(j => {
+    const checked = etatCoche[j.key];
+    return `
+    <div class="plan-ligne">
+      <label class="plan-case">
+        <input type="checkbox" id="pj-${j.key}" onchange="togglePlanJour('${j.key}')" ${checked?"checked":""}>
+        <span class="plan-jour-label">${j.label}</span>
+      </label>
+      <div class="plan-heures" id="plan-heures-${j.key}" style="display:${checked?'flex':'none'}">
+        ${pickerHeure(j.key,"deb","de")}
+        ${pickerHeure(j.key,"fin","à")}
+      </div>
+    </div>`;
+  }).join("");
+}
+
+window.togglePlanJour = function(key) {
+  const cb  = document.getElementById(`pj-${key}`);
+  const hrs = document.getElementById(`plan-heures-${key}`);
+  hrs.style.display = cb.checked ? "flex" : "none";
+};
+
+/* ══════════════════════════════════════════════
+   FORMULAIRE NOUVEL ÉVÉNEMENT / ÉDITION
+══════════════════════════════════════════════ */
+window.ouvrirFormulaire = function(dateDefaut) {
+  editKey = null;
+  selectedQui = new Set(["Céline","Yves"]);
+  document.getElementById("form-titre-label").textContent = "Nouvel événement";
+  document.getElementById("ev-titre").value = "";
+  document.getElementById("ev-date").value  = dateDefaut || selectedDay || new Date().toISOString().slice(0,10);
+  document.getElementById("ev-heure").value = "";
+  document.getElementById("ev-cat").value   = "famille";
+  document.getElementById("ev-note").value  = "";
+  renderQuiButtons();
+  majFormCat();
+  document.getElementById("modal-overlay").style.display = "flex";
+};
+
+window.ouvrirEdition = function(key) {
+  const ev = allEvents[key];
+  if (!ev) return;
+  editKey = key;
+  // Reconstruire le Set depuis la chaîne stockée
+  const quiStr = ev.qui || "Céline & Yves";
+  selectedQui = new Set(quiStr.split(" & ").map(s => s.trim()));
+  document.getElementById("form-titre-label").textContent = "Modifier l'événement";
+  document.getElementById("ev-titre").value = ev.titre     || "";
+  document.getElementById("ev-date").value  = ev.date      || "";
+  document.getElementById("ev-heure").value = ev.heure     || "";
+  document.getElementById("ev-cat").value   = ev.categorie || "famille";
+  document.getElementById("ev-note").value  = ev.note      || "";
+  renderQuiButtons();
+  majFormCat();
+  document.getElementById("modal-overlay").style.display = "flex";
+};
+
+window.fermerModal = function() {
+  document.getElementById("modal-overlay").style.display = "none";
+  editKey = null;
+};
+
+window.majFormCat = function() {
+  const cat      = document.getElementById("ev-cat").value;
+  const noteRow  = document.getElementById("note-row");
+  const noteLabel= document.getElementById("note-label");
+  const datHRow  = document.getElementById("date-heure-row");
+  const planRow  = document.getElementById("planning-row");
+  const valRow   = document.getElementById("valentin-row");
+  const sportRow = document.getElementById("sport-row");
+  const ecoleRow = document.getElementById("ecole-row");
+
+  datHRow.style.display  = "block";
+  planRow.style.display  = "none";
+  valRow.style.display   = "none";
+  sportRow.style.display = "none";
+  if (ecoleRow) ecoleRow.style.display = "none";
+
+  noteRow.style.display = "block";
+  if (cat === "autre")      noteLabel.textContent = "Note / précision *";
+  else if (cat === "sport") noteLabel.textContent = "Discipline sportive";
+  else                      noteLabel.textContent = "Note (optionnelle)";
+
+  if (cat === "travail") {
+    datHRow.style.display = "none";
+    planRow.style.display = "block";
+    planDeb = { annee:0, semaine:0 };
+    planFin = { annee:0, semaine:0 };
+    planTravailSaufSems = new Set();
+    renderPlanningTravail();
+    renderTravailSaufListe();
+  } else if (cat === "valentin") {
+    datHRow.style.display = "none";
+    valRow.style.display  = "block";
+    renderValentinPanel();
+  } else if (cat === "sport") {
+    datHRow.style.display  = "none";
+    sportRow.style.display = "block";
+    renderSportPanel();
+  } else if (cat === "ecole") {
+    datHRow.style.display  = "none";
+    if (ecoleRow) { ecoleRow.style.display = "block"; renderEcolePanel(); }
+  }
+};
+
+window.majNoteRow = window.majFormCat;
+
+/* ══════════════════════════════════════════════
+   VALENTIN — semaines paires/impaires + exceptions
+══════════════════════════════════════════════ */
+let valentinParite = "paires"; // "paires" | "impaires"
+let valentinExceptions = {}; // { "YYYY-Wnn": "absent"|"present" }
+let valentinAnnee = new Date().getFullYear();
+
+window.renderValentinPanel = function() {
+  const el = document.getElementById("valentin-panel");
+  if (!el) return;
+  const annLbl = document.getElementById("val-annee-label");
+  if (annLbl) annLbl.textContent = valentinAnnee;
+  // Construire la liste des semaines de l'année
+  const maxSem = 52;
+  let lignes = "";
+  for (let s = 1; s <= maxSem; s++) {
+    const estPaire = s % 2 === 0;
+    const regle = valentinParite === "paires" ? estPaire : !estPaire;
+    const exc = valentinExceptions[`${valentinAnnee}-W${String(s).padStart(2,"0")}`];
+    const present = exc !== undefined ? exc === "present" : regle;
+    const lundi = lundoDeSemaine(valentinAnnee, s);
+    const dimanche = addJours(lundi, 6);
+    const fmtCourt = d => `${d.getDate()}/${d.getMonth()+1}`;
+    const label = `S${s} — ${fmtCourt(lundi)} au ${fmtCourt(dimanche)}`;
+    const cls   = present ? "val-sem-actif" : "val-sem-inactif";
+    const excBadge = exc !== undefined ? `<span class="val-exc-badge">${exc==="present"?"✚ ajout":"✕ exclu"}</span>` : "";
+    lignes += `<div class="val-sem-ligne ${cls}" onclick="toggleValentinSem(${s})">
+      <span class="val-sem-label">${label}${excBadge}</span>
+      <span class="val-sem-icone">${present?"💚":"○"}</span>
+    </div>`;
+  }
+  el.innerHTML = lignes;
+};
+
+window.toggleValentinSem = function(s) {
+  const key = `${valentinAnnee}-W${String(s).padStart(2,"0")}`;
+  const estPaire = s % 2 === 0;
+  const regle = valentinParite === "paires" ? estPaire : !estPaire;
+  if (valentinExceptions[key] !== undefined) {
+    delete valentinExceptions[key]; // enlever l'exception → retour à la règle
+  } else {
+    valentinExceptions[key] = regle ? "absent" : "present"; // inverser
+  }
+  renderValentinPanel();
+};
+
+window.setValentinParite = function(p) {
+  valentinParite = p;
+  valentinExceptions = {};
+  document.getElementById("val-btn-paires").classList.toggle("actif", p==="paires");
+  document.getElementById("val-btn-impaires").classList.toggle("actif", p==="impaires");
+  renderValentinPanel();
+};
+
+window.setValentinAnnee = function(delta) {
+  valentinAnnee += delta;
+  document.getElementById("val-annee-label").textContent = valentinAnnee;
+  renderValentinPanel();
+};
+
+/* ══════════════════════════════════════════════
+   SPORT — jours récurrents, toutes semaines sauf n°
+══════════════════════════════════════════════ */
+let sportJours    = new Set();
+let sportSaufSems = new Set(); // numéros de semaines à exclure
+let sportAnnee    = new Date().getFullYear();
+let sportSemDeb   = 1;
+let sportSemFin   = 52;
+
+window.renderSportPanel = function() {
+  // Mettre à jour l'année affichée
+  const anneeInp = document.getElementById("sport-annee");
+  if (anneeInp && !anneeInp._init) {
+    anneeInp.value = sportAnnee;
+    anneeInp._init = true;
+  }
+  // Jours cochés
+  JOURS_PLANNING.forEach(j => {
+    const btn = document.getElementById(`sport-jour-${j.key}`);
+    if (btn) btn.classList.toggle("actif", sportJours.has(j.key));
+  });
+  // Semaines sauf
+  const el = document.getElementById("sport-sauf-liste");
+  if (!el) return;
+  if (sportSaufSems.size === 0) {
+    el.textContent = "Aucune semaine exclue";
+    return;
+  }
+  el.innerHTML = [...sportSaufSems].sort((a,b)=>a-b).map(s =>
+    `<span class="sauf-badge" onclick="retirerSaufSem(${s})">S${s} ✕</span>`
+  ).join(" ");
+};
+
+window.toggleSportJour = function(key) {
+  if (sportJours.has(key)) sportJours.delete(key);
+  else sportJours.add(key);
+  renderSportPanel();
+};
+
+window.ajouterSaufSemTravail = function() {
+  const v = parseInt(document.getElementById("travail-sauf-input").value);
+  if (v >= 1 && v <= 53) {
+    planTravailSaufSems.add(v);
+    document.getElementById("travail-sauf-input").value = "";
+    renderTravailSaufListe();
+  }
+};
+
+window.retirerSaufSemTravail = function(s) {
+  planTravailSaufSems.delete(s);
+  renderTravailSaufListe();
+};
+
+function renderTravailSaufListe() {
+  const el = document.getElementById("travail-sauf-liste");
+  if (!el) return;
+  if (planTravailSaufSems.size === 0) {
+    el.textContent = "Aucune semaine exclue";
+    return;
+  }
+  el.innerHTML = [...planTravailSaufSems].sort((a,b)=>a-b).map(s =>
+    `<span class="sauf-badge" onclick="retirerSaufSemTravail(${s})">S${s} ✕</span>`
+  ).join(" ");
+}
+
+window.ajouterSaufSem = function() {
+  sportSaufSems.delete(s);
+  renderSportPanel();
+};
+
+window.majSportSem = function(quel) {
+  const v = parseInt(document.getElementById(`sport-sem-${quel}`).value);
+  if (quel==="deb") sportSemDeb = v;
+  else              sportSemFin = v;
+};
+
+/* ══════════════════════════════════════════════
+   ÉCOLE — périodes de vacances par enfant
+══════════════════════════════════════════════ */
+// Liste des périodes de vacances à créer
+let ecolePeriodes = []; // [{ prenom, dateDebut, dateFin }]
+
+window.renderEcolePanel = function() {
+  const el = document.getElementById("ecole-periodes-liste");
+  if (!el) return;
+  if (ecolePeriodes.length === 0) {
+    el.innerHTML = `<p style="font-size:12px;color:var(--gris);font-style:italic">Aucune période ajoutée</p>`;
+    return;
+  }
+  el.innerHTML = ecolePeriodes.map((p, i) => `
+    <div class="ecole-periode-item">
+      <span class="ecole-periode-prenom">${p.prenom}</span>
+      <span class="ecole-periode-dates">${fmtDate(new Date(p.dateDebut+"T12:00"))} → ${fmtDate(new Date(p.dateFin+"T12:00"))}</span>
+      <button type="button" class="btn-icon" onclick="retirerEcolePeriode(${i})">✕</button>
+    </div>`).join("");
+};
+
+window.ajouterEcolePeriode = function() {
+  const prenom = document.getElementById("ecole-prenom").value.trim();
+  const deb    = document.getElementById("ecole-date-deb").value;
+  const fin    = document.getElementById("ecole-date-fin").value;
+  if (!prenom || !deb || !fin) { alert("Prénom, date de début et date de fin requis"); return; }
+  if (fin < deb) { alert("La date de fin doit être après le début"); return; }
+  ecolePeriodes.push({ prenom, dateDebut: deb, dateFin: fin });
+  // Reset champs
+  document.getElementById("ecole-prenom").value = "";
+  document.getElementById("ecole-date-deb").value = "";
+  document.getElementById("ecole-date-fin").value = "";
+  renderEcolePanel();
+};
+
+window.retirerEcolePeriode = function(i) {
+  ecolePeriodes.splice(i, 1);
+  renderEcolePanel();
+};
+window.sauvegarderEv = async function() {
+  const titre = document.getElementById("ev-titre").value.trim();
+  const cat   = document.getElementById("ev-cat").value;
+  const qui   = [...selectedQui].join(" & ") || "Céline & Yves";
+
+  if (!titre) { alert("Le titre est obligatoire"); return; }
+
+  const base = {
+    titre,
+    qui,
+    categorie: cat,
+    note:      document.getElementById("ev-note").value.trim() || null,
+    modifiedAt: new Date().toISOString(),
+    supprime:  false
+  };
+
+  if (cat === "travail") {
+    const joursCochesMod = [];
+    for (const j of JOURS_PLANNING) {
+      const cb = document.getElementById(`pj-${j.key}`);
+      if (!cb?.checked) continue;
+      const hdeb = document.getElementById(`ph-deb-val-${j.key}`)?.value || hm(planHeures[j.key].deb);
+      const hfin = document.getElementById(`ph-fin-val-${j.key}`)?.value || hm(planHeures[j.key].fin);
+      joursCochesMod.push({
+        index: JOURS_PLANNING.indexOf(j),
+        hdeb, hfin
+      });
+    }
+    if (joursCochesMod.length === 0) { alert("Cochez au moins un jour"); return; }
+    let curAn = planDeb.annee, curSem = planDeb.semaine;
+    const maxIter = 200; let iter = 0;
+    while (iter++ < maxIter) {
+      if (!planTravailSaufSems.has(curSem)) {
+        const lundi = lundoDeSemaine(curAn, curSem);
+        for (const jc of joursCochesMod) {
+          const dateJ = addJours(lundi, jc.index);
+          const heureLabel = (jc.hdeb && jc.hfin) ? `${jc.hdeb}–${jc.hfin}` : (jc.hdeb || null);
+          await push(ref(db,"evenements"), {
+            ...base, date: dateToStr(dateJ),
+            heure: jc.hdeb || null, heureFin: jc.hfin || null,
+            note: base.note || (heureLabel ? `Travail ${heureLabel}` : null),
+            createdAt: new Date().toISOString()
+          });
+        }
+      }
+      if (curAn === planFin.annee && curSem === planFin.semaine) break;
+      curSem++; if (curSem > 53) { curAn++; curSem = 1; }
+    }
+
+  } else if (cat === "valentin") {
+    // Créer un événement par semaine où Valentin est présent
+    const maxSem = 52;
+    let nbCrees = 0;
+    for (let s = 1; s <= maxSem; s++) {
+      const key = `${valentinAnnee}-W${String(s).padStart(2,"0")}`;
+      const estPaire = s % 2 === 0;
+      const regle = valentinParite === "paires" ? estPaire : !estPaire;
+      const exc = valentinExceptions[key];
+      const present = exc !== undefined ? exc === "present" : regle;
+      if (!present) continue;
+      const lundi = lundoDeSemaine(valentinAnnee, s);
+      const dimanche = addJours(lundi, 6);
+      await push(ref(db,"evenements"), {
+        ...base,
+        date: dateToStr(lundi),
+        dateFin: dateToStr(dimanche),
+        heure: null,
+        note: base.note || `Semaine ${valentinParite === "paires" ? "paire" : "impaire"} S${s}`,
+        createdAt: new Date().toISOString()
+      });
+      nbCrees++;
+    }
+    if (nbCrees === 0) { alert("Aucune semaine sélectionnée"); return; }
+
+  } else if (cat === "sport") {
+    if (sportJours.size === 0) { alert("Sélectionnez au moins un jour"); return; }
+    const discipline = document.getElementById("ev-note").value.trim() || "";
+    let curSem = sportSemDeb;
+    const maxIter = 200; let iter = 0;
+    while (iter++ < maxIter && curSem <= sportSemFin) {
+      if (!sportSaufSems.has(curSem)) {
+        const lundi = lundoDeSemaine(sportAnnee, curSem);
+        for (const jKey of sportJours) {
+          const idx = JOURS_PLANNING.findIndex(j => j.key === jKey);
+          const dateJ = addJours(lundi, idx);
+          await push(ref(db,"evenements"), {
+            ...base,
+            date: dateToStr(dateJ),
+            heure: null,
+            note: discipline || null,
+            createdAt: new Date().toISOString()
+          });
+        }
+      }
+      curSem++;
+    }
+
+  } else if (cat === "ecole") {
+    if (ecolePeriodes.length === 0) { alert("Ajoutez au moins une période de vacances"); return; }
+    for (const periode of ecolePeriodes) {
+      // Créer un événement par jour de la période (lundi-vendredi uniquement)
+      let cur = new Date(periode.dateDebut + "T12:00:00");
+      const fin = new Date(periode.dateFin + "T12:00:00");
+      while (cur <= fin) {
+        const jourSem = cur.getDay(); // 0=dim, 6=sam
+        if (jourSem !== 0 && jourSem !== 6) { // jours de semaine seulement
+          await push(ref(db,"evenements"), {
+            ...base,
+            titre: `Vacances ${periode.prenom}`,
+            qui: periode.prenom,
+            date: dateToStr(cur),
+            heure: null,
+            note: document.getElementById("ev-note").value.trim() || null,
+            createdAt: new Date().toISOString()
+          });
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+    }
+    // Reset pour la prochaine fois
+    ecolePeriodes = [];
+
+  } else {
+    const date = document.getElementById("ev-date").value;
+    if (!date) { alert("La date est obligatoire"); return; }
+    const data = {
+      ...base,
+      date,
+      heure: document.getElementById("ev-heure").value || null,
+      createdAt: editKey ? undefined : new Date().toISOString()
+    };
+    if (editKey) await update(ref(db,`evenements/${editKey}`), data);
+    else         await push(ref(db,"evenements"), data);
+  }
+
+  fermerModal();
+  renderCalendar();
+  renderMonthList();
+  if (selectedDay) renderDayDetail(selectedDay);
+};
+
+/* ══════════════════════════════════════════════
+   SUPPRESSION + UNDO
+══════════════════════════════════════════════ */
+window.supprimerEv = async function(key) {
+  const ev = allEvents[key];
+  if (!ev) return;
+  lastDeleted = { key, data: { ...ev } };
+  await update(ref(db,`evenements/${key}`), { supprime: true, suppressAt: new Date().toISOString() });
+  afficherUndo();
+};
+
+function afficherUndo() {
+  const bar = document.getElementById("undo-bar");
+  bar.style.display = "flex";
+  clearTimeout(window._undoTimer);
+  window._undoTimer = setTimeout(() => { bar.style.display = "none"; lastDeleted = null; }, 6000);
+}
+
+window.annulerSuppression = async function() {
+  if (!lastDeleted) return;
+  await update(ref(db,`evenements/${lastDeleted.key}`), { supprime: false, suppressAt: null });
+  document.getElementById("undo-bar").style.display = "none";
+  lastDeleted = null;
+};
+
+/* ══════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════ */
+if (location.hash === "#nouveau") ouvrirFormulaire();
+</script>
+
+<style>
+/* ═══ BASE ════════════════════════════════════ */
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+:root {
+  --mauve:      #9b6fc4;
+  --mauve-f:    #6a2fa0;
+  --mauve-pale: #f0e8f9;
+  --mauve-mid:  #d4b8ef;
+  --vert-val:   #2e7d52;
+  --vert-pale:  #e6f4ec;
+  --texte:      #2a1a3e;
+  --gris:       #6b5d7a;
+  --gris-pale:  #f2edf8;
+  --blanc:      #fff;
+  --fond:       #f7f2fc;
+  --radius:     14px;
+  --shadow:     0 2px 16px rgba(120,80,180,0.10);
+}
+html,body {
+  height:100%; font-family:'DM Sans',sans-serif;
+  background:var(--fond); color:var(--texte);
+  font-size:15px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  max-width:480px; margin:0 auto;
+  padding-bottom:80px; overflow-x:hidden;
+}
+
+/* ═══ HEADER ══════════════════════════════════ */
+.header {
+  background:linear-gradient(135deg,#6a2fa0,#9b6fc4 60%,#c9a8e8);
+  color:#fff; padding:18px 20px 16px;
+  display:flex; align-items:center; gap:12px;
+}
+.header a { color:#fff; text-decoration:none; font-size:22px; line-height:1; }
+.header-titre {
+  font-family:'Playfair Display',serif;
+  font-size:18px; font-weight:700; flex:1;
+}
+.header-titre span { font-size:13px; font-weight:400; opacity:.75; display:block; }
+
+/* ═══ NAVIGATION MOIS ═════════════════════════ */
+.cal-nav {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 16px 8px; background:var(--blanc);
+  border-bottom:1px solid var(--mauve-pale);
+}
+.cal-nav button {
+  background:var(--mauve-pale); border:none; border-radius:50%;
+  width:34px; height:34px; font-size:16px; cursor:pointer;
+  color:var(--mauve-f); display:flex; align-items:center; justify-content:center;
+  transition:background .15s;
+}
+.cal-nav button:active { background:var(--mauve-mid); }
+#cal-titre {
+  font-family:'Playfair Display',serif;
+  font-size:17px; font-weight:700; color:var(--texte);
+}
+
+/* ═══ EN-TÊTES JOURS ═════════════════════════ */
+.cal-jours {
+  display:grid; grid-template-columns:28px repeat(7,1fr);
+  background:var(--blanc); padding:0 8px 4px;
+}
+.cal-jour-label {
+  text-align:center; font-size:11px; font-weight:600;
+  color:var(--gris); padding:4px 0;
+  text-transform:uppercase; letter-spacing:.3px;
+}
+.cal-jour-sem-header {
+  font-size:9px; color:var(--mauve); font-weight:700;
+  text-align:center; padding:4px 0; letter-spacing:.2px;
+  text-transform:uppercase;
+}
+
+/* ═══ GRILLE CALENDRIER ══════════════════════ */
+#cal-grille {
+  display:grid; grid-template-columns:28px repeat(7,1fr);
+  background:var(--blanc); padding:4px 8px 12px; gap:2px;
+}
+.cal-sem {
+  display:flex; align-items:center; justify-content:center;
+  font-size:9px; font-weight:700; color:var(--mauve);
+  opacity:.7; padding:2px 0;
+  border-right:1px solid var(--mauve-pale);
+}
+.cal-cell {
+  aspect-ratio:1; display:flex; flex-direction:column;
+  align-items:center; justify-content:flex-start;
+  padding:4px 2px 2px; border-radius:10px;
+  cursor:pointer; position:relative;
+  transition:background .12s;
+  min-height:44px;
+}
+.cal-cell:active { background:var(--mauve-pale); }
+.cal-cell.vide   { cursor:default; }
+.cal-cell.today  { background:var(--mauve-pale); }
+.cal-cell.today .cal-num { color:var(--mauve-f); font-weight:700; }
+.cal-cell.selected { background:var(--mauve); }
+.cal-cell.selected .cal-num { color:#fff; font-weight:700; }
+.cal-cell.selected .cal-fete { color:rgba(255,255,255,.8); }
+.cal-cell.valentin { background:#f0faf4; }
+.cal-cell.valentin .cal-num { color:var(--vert-val); }
+.cal-cell.valentin.today { background:#d4eddf; }
+.cal-cell.valentin.selected { background:var(--vert-val); }
+.cal-cell.valentin.selected .cal-num { color:#fff; }
+
+.cal-num {
+  font-size:13px; font-weight:500; color:var(--texte);
+  line-height:1.2;
+}
+.cal-fete {
+  font-size:7px; color:var(--mauve); text-align:center;
+  line-height:1.1; margin-top:1px; max-width:100%;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.cal-dot {
+  width:6px; height:6px; border-radius:50%;
+  background:var(--mauve); margin-top:auto;
+  font-size:7px; color:#fff; display:flex;
+  align-items:center; justify-content:center;
+  line-height:1;
+}
+.cal-cell.selected .cal-dot { background:#fff; color:var(--mauve); }
+.cal-cell.valentin .cal-dot { background:var(--vert-val); }
+
+/* légende Valentin */
+.legende-valentin {
+  display:flex; align-items:center; gap:6px;
+  padding:6px 16px; font-size:11px; color:var(--vert-val);
+  background:#f0faf4;
+}
+.legende-val-carre {
+  width:12px; height:12px; background:#f0faf4;
+  border:1px solid var(--vert-val); border-radius:3px;
+}
+
+/* ═══ PANNEAU JOUR ════════════════════════════ */
+#panneau-jour {
+  display:none;
+  background:var(--blanc); margin:12px 12px 0;
+  border-radius:var(--radius); box-shadow:var(--shadow);
+  overflow:hidden;
+}
+.jour-header {
+  background:var(--mauve-pale); padding:14px 16px 10px;
+  border-bottom:1px solid var(--mauve-mid);
+}
+#jour-titre {
+  font-family:'Playfair Display',serif;
+  font-size:16px; font-weight:700; color:var(--texte);
+}
+#jour-extra { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+.jour-fete, .jour-valentin, .jour-anniv {
+  font-size:12px; padding:2px 8px; border-radius:12px;
+}
+.jour-fete    { background:var(--mauve-pale); color:var(--mauve-f); border:1px solid var(--mauve-mid); }
+.jour-valentin{ background:#e6f4ec; color:var(--vert-val); border:1px solid #a8d8bb; }
+.jour-anniv   { background:#fff3e0; color:#c07a00; border:1px solid #f0d080; }
+
+.jour-body { padding:12px 16px; }
+
+.jour-ev-item {
+  display:flex; gap:10px; margin-bottom:12px;
+}
+.jour-ev-heure {
+  font-size:12px; font-weight:700; color:var(--mauve);
+  min-width:36px; padding-top:3px;
+}
+.jour-ev-corps {
+  flex:1; padding:8px 10px; border-radius:0 8px 8px 0;
+  background:var(--gris-pale);
+}
+.jour-ev-titre {
+  font-size:14px; font-weight:600; color:var(--texte);
+}
+.jour-ev-meta {
+  font-size:12px; color:var(--gris); margin-top:3px;
+}
+.jour-ev-note {
+  font-size:12px; color:var(--texte); margin-top:4px;
+  font-style:italic; white-space:pre-wrap;
+}
+.jour-ev-btns {
+  display:flex; gap:6px; margin-top:8px;
+}
+
+.btn-small {
+  font-size:11px; padding:3px 8px; border-radius:8px;
+  border:1px solid var(--mauve-mid); background:var(--blanc);
+  color:var(--mauve-f); cursor:pointer;
+}
+.btn-small.rouge {
+  border-color:#f5c0c0; color:var(--rouge-val);
+}
+
+.btn-add-jour {
+  width:100%; padding:10px; margin-top:4px;
+  background:var(--mauve-pale); border:1px dashed var(--mauve-mid);
+  border-radius:10px; color:var(--mauve-f); font-size:13px;
+  font-weight:500; cursor:pointer; transition:background .15s;
+}
+.btn-add-jour:active { background:var(--mauve-mid); }
+
+/* ═══ LISTE DU MOIS ══════════════════════════ */
+.section-mois {
+  background:var(--blanc); margin:12px 12px 0;
+  border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden;
+}
+.section-mois-header {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:14px 16px 10px; border-bottom:1px solid var(--mauve-pale);
+}
+.section-mois-titre {
+  font-family:'Playfair Display',serif;
+  font-size:15px; font-weight:700;
+}
+.section-mois-body { padding:8px 16px 12px; }
+
+.ml-date-header {
+  font-size:12px; font-weight:700; color:var(--mauve-f);
+  text-transform:uppercase; letter-spacing:.5px;
+  padding:8px 0 4px; border-bottom:1px solid var(--mauve-pale);
+  margin-bottom:4px;
+}
+.ml-item {
+  display:flex; align-items:flex-start; gap:8px;
+  padding:8px 0; border-bottom:1px solid #f5f2fa;
+  cursor:pointer;
+}
+.ml-item:last-child { border-bottom:none; }
+.ml-barre { width:3px; min-width:3px; border-radius:2px; align-self:stretch; min-height:28px; }
+.ml-corps { flex:1; }
+.ml-titre-ligne { display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; }
+.ml-heure { font-size:11px; font-weight:700; color:var(--mauve); }
+.ml-titre { font-size:13px; font-weight:500; color:var(--texte); flex:1; }
+.ml-qui {
+  font-size:11px; background:var(--mauve-pale); color:var(--mauve-f);
+  padding:1px 6px; border-radius:8px;
+}
+.ml-note { font-size:12px; color:var(--gris); margin-top:2px; font-style:italic; }
+.ml-actions { display:flex; gap:4px; }
+.btn-icon {
+  background:none; border:none; cursor:pointer;
+  font-size:14px; padding:4px; border-radius:6px;
+  transition:background .15s;
+}
+.btn-icon:active { background:var(--mauve-pale); }
+
+/* ═══ MODAL FORMULAIRE ════════════════════════ */
+#modal-overlay {
+  display:none; position:fixed; inset:0;
+  background:rgba(42,26,62,.55); z-index:200;
+  align-items:flex-end; justify-content:center;
+  backdrop-filter:blur(3px);
+}
+.modal {
+  background:var(--blanc); border-radius:20px 20px 0 0;
+  width:100%; max-width:480px;
+  padding:20px 20px 36px;
+  max-height:90vh; overflow-y:auto;
+  animation:slideUp .25s ease;
+}
+@keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+
+.modal-header {
+  display:flex; justify-content:space-between; align-items:center;
+  margin-bottom:18px;
+}
+#form-titre-label {
+  font-family:'Playfair Display',serif;
+  font-size:18px; font-weight:700;
+}
+.modal-close {
+  background:var(--gris-pale); border:none; border-radius:50%;
+  width:32px; height:32px; font-size:18px;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  color:var(--gris);
+}
+
+.form-row { margin-bottom:14px; }
+.form-label {
+  display:block; font-size:12px; font-weight:600;
+  color:var(--gris); margin-bottom:5px;
+  text-transform:uppercase; letter-spacing:.4px;
+}
+.form-input {
+  width:100%; padding:10px 12px; border-radius:10px;
+  border:1.5px solid var(--mauve-mid); font-size:14px;
+  font-family:'DM Sans',sans-serif; color:var(--texte);
+  background:var(--blanc); outline:none;
+  transition:border-color .15s;
+}
+.form-input:focus { border-color:var(--mauve); }
+.form-row-2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+
+.form-qui-grid {
+  display:flex; gap:10px;
+}
+.qui-groupe {
+  flex:1; background:var(--gris-pale); border-radius:12px; padding:8px 10px;
+}
+.qui-groupe-label {
+  font-size:11px; font-weight:700; color:var(--mauve-f);
+  text-transform:uppercase; letter-spacing:.4px; margin-bottom:6px;
+}
+.qui-groupe-membres { display:flex; flex-direction:column; gap:5px; }
+.qui-btn {
+  padding:8px 6px; border-radius:9px; border:1.5px solid var(--mauve-mid);
+  background:var(--blanc); color:var(--gris); font-size:13px;
+  font-weight:500; cursor:pointer; text-align:center;
+  transition:all .15s; width:100%;
+}
+.qui-btn.actif {
+  background:var(--mauve); border-color:var(--mauve);
+  color:#fff; font-weight:700;
+}
+
+/* ── Planning travail ──────────────────────── */
+.plan-semaine-nav {
+  background:var(--mauve-pale); border-radius:12px;
+  padding:12px 14px; margin-bottom:10px;
+}
+.plan-bloc-sem { margin-bottom:6px; }
+.plan-bloc-titre {
+  font-size:12px; font-weight:700; color:var(--mauve-f);
+  display:block; margin-bottom:6px;
+}
+.plan-fleche {
+  text-align:center; font-size:18px; color:var(--mauve);
+  margin:4px 0; opacity:.6;
+}
+.plan-semaine-inputs {
+  display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;
+}
+.plan-sem-champ { display:flex; flex-direction:column; gap:4px; }
+.plan-sem-label { font-size:10px; font-weight:600; color:var(--gris); text-transform:uppercase; letter-spacing:.3px; }
+.plan-num-input {
+  width:60px; padding:6px 8px; border-radius:8px;
+  border:1.5px solid var(--mauve-mid); font-size:14px; font-weight:600;
+  color:var(--texte); background:var(--blanc); text-align:center;
+  -moz-appearance:textfield;
+}
+.plan-num-input::-webkit-outer-spin-button,
+.plan-num-input::-webkit-inner-spin-button { -webkit-appearance:none; }
+.plan-nav-btn {
+  width:28px; height:28px; border-radius:7px;
+  border:1.5px solid var(--mauve-mid); background:var(--blanc);
+  color:var(--mauve-f); font-size:15px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition:background .15s;
+}
+.plan-nav-btn:active { background:var(--mauve-mid); }
+.plan-label-dates {
+  font-size:11px; color:var(--mauve-f); font-weight:500; margin-top:5px;
+}
+.plan-jours-titre {
+  font-size:12px; font-weight:700; color:var(--gris);
+  text-transform:uppercase; letter-spacing:.4px;
+  padding:0 2px 6px;
+}
+.plan-jours-container { display:flex; flex-direction:column; gap:5px; margin-bottom:6px; }
+.plan-ligne {
+  background:var(--gris-pale); border-radius:10px;
+  padding:8px 12px; display:flex; align-items:center;
+  gap:10px; flex-wrap:nowrap;
+}
+.plan-case {
+  display:flex; align-items:center; gap:8px; cursor:pointer;
+  flex-shrink:0; min-width:64px;
+}
+.plan-case input[type=checkbox] {
+  width:18px; height:18px; accent-color:var(--mauve);
+  cursor:pointer; flex-shrink:0;
+}
+.plan-jour-label {
+  font-size:14px; font-weight:600; color:var(--texte);
+}
+.plan-heures {
+  display:flex; align-items:center; gap:6px; flex:1;
+}
+.plan-de { font-size:12px; color:var(--gris); font-weight:500; }
+
+/* ── Picker heure custom ───────────────────── */
+.h-picker {
+  display:flex; align-items:center; gap:3px;
+  background:var(--blanc); border:1.5px solid var(--mauve-mid);
+  border-radius:10px; padding:3px 6px;
+}
+.h-col {
+  display:flex; flex-direction:column;
+  align-items:center; gap:1px;
+}
+.h-spin {
+  background:none; border:none; cursor:pointer;
+  color:var(--mauve-f); font-size:10px; line-height:1;
+  padding:2px 4px; border-radius:4px;
+  transition:background .1s;
+  -webkit-tap-highlight-color:transparent;
+}
+.h-spin:active { background:var(--mauve-pale); }
+.h-val {
+  font-size:16px; font-weight:700; color:var(--texte);
+  min-width:22px; text-align:center; line-height:1.3;
+  font-variant-numeric:tabular-nums;
+}
+.h-sep {
+  font-size:18px; font-weight:700; color:var(--mauve);
+  padding:0 1px; line-height:1;
+}
+
+/* ── École vacances ───────────────────────── */
+.ecole-periode-item {
+  display:flex; align-items:center; gap:8px;
+  background:var(--mauve-pale); border-radius:8px;
+  padding:7px 10px; margin-bottom:5px;
+}
+.ecole-periode-prenom {
+  font-size:13px; font-weight:700; color:var(--mauve-f); min-width:58px;
+}
+.ecole-periode-dates { font-size:12px; color:var(--gris); flex:1; }
+
+.btn-sauver {
+  width:100%; padding:14px; margin-top:8px;
+  background:linear-gradient(135deg,var(--mauve-f),var(--mauve));
+  border:none; border-radius:12px; color:#fff;
+  font-size:15px; font-weight:700; cursor:pointer;
+  font-family:'DM Sans',sans-serif;
+  transition:opacity .15s;
+}
+.btn-sauver:active { opacity:.85; }
+
+/* ═══ UNDO BAR ════════════════════════════════ */
+#undo-bar {
+  display:none; position:fixed; bottom:88px; left:50%;
+  transform:translateX(-50%); width:calc(100% - 32px); max-width:448px;
+  background:#2a1a3e; color:#fff; border-radius:12px;
+  padding:12px 16px; z-index:300;
+  align-items:center; justify-content:space-between;
+  box-shadow:0 4px 20px rgba(0,0,0,.25);
+  animation:slideUp .2s ease;
+}
+#undo-bar span { font-size:13px; }
+#undo-bar button {
+  background:var(--mauve-pale); border:none; border-radius:8px;
+  padding:6px 12px; font-size:13px; font-weight:700;
+  color:var(--mauve-f); cursor:pointer;
+}
+
+/* ═══ FAB ════════════════════════════════════ */
+.fab {
+  position:fixed; bottom:80px; right:20px;
+  width:54px; height:54px;
+  background:linear-gradient(135deg,#9b6fc4,#6a2fa0);
+  border-radius:50%; border:none; color:#fff;
+  font-size:26px; display:flex; align-items:center; justify-content:center;
+  box-shadow:0 4px 20px rgba(155,111,196,.5);
+  cursor:pointer; z-index:99; text-decoration:none;
+  transition:transform .2s; -webkit-tap-highlight-color:transparent;
+}
+.fab:active { transform:scale(.93); }
+
+/* ═══ NAV BAS ════════════════════════════════ */
+.nav-bas {
+  position:fixed; bottom:0; left:50%; transform:translateX(-50%);
+  width:100%; max-width:480px; background:var(--blanc);
+  border-top:1px solid #e8e0f5; display:flex;
+  justify-content:space-around; padding:8px 0 12px;
+  z-index:100; box-shadow:0 -2px 16px rgba(120,80,180,.07);
+}
+.nav-item {
+  display:flex; flex-direction:column; align-items:center; gap:3px;
+  text-decoration:none; color:var(--gris); font-size:10px; font-weight:500;
+  padding:4px 8px; border-radius:10px;
+  transition:color .2s,background .2s;
+  -webkit-tap-highlight-color:transparent;
+}
+.nav-item.actif, .nav-item:active {
+  color:var(--mauve-f); background:var(--mauve-pale);
+}
+.nav-item svg { width:22px; height:22px; stroke-width:1.7; }
+
+/* ═══ UTILITAIRES ════════════════════════════ */
+.rien { font-size:13px; color:var(--gris); text-align:center; padding:12px 0; font-style:italic; }
+.lien-btn { background:none; border:none; color:var(--mauve-f); font-size:13px; cursor:pointer; text-decoration:underline; }
+
+/* Valentin semaines */
+.val-sem-ligne {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:6px 10px; border-radius:8px; cursor:pointer;
+  transition:background .12s; font-size:12px;
+}
+.val-sem-actif   { background:#e6f4ec; color:#2e7d52; }
+.val-sem-inactif { background:var(--gris-pale); color:var(--gris); }
+.val-sem-label   { flex:1; }
+.val-sem-icone   { font-size:14px; margin-left:6px; }
+.val-exc-badge {
+  display:inline-block; font-size:10px; font-weight:700;
+  background:#fff3; border-radius:6px; padding:0 4px;
+  margin-left:4px; opacity:.8;
+}
+
+/* Sport sauf badges */
+.sauf-badge {
+  display:inline-block; background:var(--mauve-pale); color:var(--mauve-f);
+  font-size:11px; font-weight:700; padding:3px 8px; border-radius:8px;
+  cursor:pointer; margin:2px; transition:background .12s;
+}
+.sauf-badge:active { background:var(--mauve-mid); }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <a href="index.html">←</a>
+  <div class="header-titre">
+    Agenda
+    <span>Céline & Yves</span>
+  </div>
+  <button onclick="ouvrirFormulaire()" style="background:rgba(255,255,255,.2);border:none;border-radius:50%;width:36px;height:36px;color:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;">+</button>
+</header>
+
+<!-- NAVIGATION MOIS -->
+<div class="cal-nav">
+  <button onclick="moisPrec()">‹</button>
+  <span id="cal-titre"></span>
+  <button onclick="moisSuiv()">›</button>
+</div>
+
+<!-- EN-TÊTES JOURS (lun → dim) -->
+<div class="cal-jours">
+  <div class="cal-jour-sem-header">Sem</div>
+  <div class="cal-jour-label">Lun</div>
+  <div class="cal-jour-label">Mar</div>
+  <div class="cal-jour-label">Mer</div>
+  <div class="cal-jour-label">Jeu</div>
+  <div class="cal-jour-label">Ven</div>
+  <div class="cal-jour-label" style="color:#c46f6f">Sam</div>
+  <div class="cal-jour-label" style="color:#c46f6f">Dim</div>
+</div>
+
+<!-- GRILLE CALENDRIER -->
+<div id="cal-grille"></div>
+
+<!-- LÉGENDE VALENTIN -->
+<div class="legende-valentin">
+  <div class="legende-val-carre"></div>
+  <span>Semaine Valentin chez Cédric</span>
+</div>
+
+<!-- PANNEAU DÉTAIL JOUR -->
+<div id="panneau-jour">
+  <div class="jour-header">
+    <div id="jour-titre"></div>
+    <div id="jour-extra"></div>
+  </div>
+  <div class="jour-body" id="jour-events"></div>
+</div>
+
+<!-- LISTE DES ACTIVITÉS DU MOIS -->
+<section class="section-mois">
+  <div class="section-mois-header">
+    <span class="section-mois-titre">📋 Activités du mois</span>
+  </div>
+  <div class="section-mois-body" id="mois-liste">
+    <p class="rien">Chargement…</p>
+  </div>
+</section>
+
+<!-- FAB -->
+<button class="fab" onclick="ouvrirFormulaire()" title="Nouvel événement">+</button>
+
+<!-- UNDO BAR -->
+<div id="undo-bar">
+  <span>Événement supprimé</span>
+  <button onclick="annulerSuppression()">↩ Annuler</button>
+</div>
+
+<!-- MODAL FORMULAIRE -->
+<div id="modal-overlay" onclick="if(event.target===this)fermerModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <span id="form-titre-label">Nouvel événement</span>
+      <button class="modal-close" onclick="fermerModal()">✕</button>
+    </div>
+
+    <!-- Titre -->
+    <div class="form-row">
+      <label class="form-label">Titre *</label>
+      <input id="ev-titre" class="form-input" type="text" placeholder="Ex : Médecin, Travail, Anniversaire…">
+    </div>
+
+    <!-- Catégorie — en haut car elle conditionne tout -->
+    <div class="form-row">
+      <label class="form-label">Catégorie</label>
+      <select id="ev-cat" class="form-input" onchange="majFormCat()">
+        <option value="rdv">🏥 Rendez-vous</option>
+        <option value="famille" selected>👨‍👩‍👧 Famille</option>
+        <option value="sport">⚽ Sport</option>
+        <option value="vacances">🏖️ Vacances</option>
+        <option value="travail">💼 Travail</option>
+        <option value="valentin">💚 Valentin</option>
+        <option value="ecole">🎒 École</option>
+        <option value="anniversaire">🎂 Anniversaire</option>
+        <option value="autre">✏️ Autre</option>
+      </select>
+    </div>
+
+    <!-- Date + Heure (masqué si travail) -->
+    <div class="form-row form-row-2" id="date-heure-row">
+      <div>
+        <label class="form-label">Date *</label>
+        <input id="ev-date" class="form-input" type="date">
+      </div>
+      <div>
+        <label class="form-label">Heure (optionnel)</label>
+        <input id="ev-heure" class="form-input" type="time">
+      </div>
+    </div>
+
+    <!-- ══ PLANNING SEMAINE TRAVAIL ══ -->
+    <div id="planning-row" style="display:none">
+      <div class="plan-semaine-nav">
+        <label class="form-label" style="margin-bottom:10px">📅 Planning de travail</label>
+
+        <!-- Semaine DE -->
+        <div class="plan-bloc-sem">
+          <span class="plan-bloc-titre">Semaine du</span>
+          <div class="plan-semaine-inputs">
+            <div class="plan-sem-champ">
+              <span class="plan-sem-label">Année</span>
+              <input type="number" id="plan-annee-deb" class="plan-num-input" min="2024" max="2030" onchange="majSemainePlanning('deb')">
+            </div>
+            <div class="plan-sem-champ">
+              <span class="plan-sem-label">Sem n°</span>
+              <div style="display:flex;align-items:center;gap:5px">
+                <button type="button" class="plan-nav-btn" onclick="changerSemaine('deb',-1)">‹</button>
+                <input type="number" id="plan-sem-deb" class="plan-num-input" min="1" max="53" onchange="majSemainePlanning('deb')">
+                <button type="button" class="plan-nav-btn" onclick="changerSemaine('deb',+1)">›</button>
+              </div>
+            </div>
+          </div>
+          <div id="plan-label-deb" class="plan-label-dates"></div>
+        </div>
+
+        <div class="plan-fleche">↓</div>
+
+        <!-- Semaine À -->
+        <div class="plan-bloc-sem">
+          <span class="plan-bloc-titre">Semaine au</span>
+          <div class="plan-semaine-inputs">
+            <div class="plan-sem-champ">
+              <span class="plan-sem-label">Année</span>
+              <input type="number" id="plan-annee-fin" class="plan-num-input" min="2024" max="2030" onchange="majSemainePlanning('fin')">
+            </div>
+            <div class="plan-sem-champ">
+              <span class="plan-sem-label">Sem n°</span>
+              <div style="display:flex;align-items:center;gap:5px">
+                <button type="button" class="plan-nav-btn" onclick="changerSemaine('fin',-1)">‹</button>
+                <input type="number" id="plan-sem-fin" class="plan-num-input" min="1" max="53" onchange="majSemainePlanning('fin')">
+                <button type="button" class="plan-nav-btn" onclick="changerSemaine('fin',+1)">›</button>
+              </div>
+            </div>
+          </div>
+          <div id="plan-label-fin" class="plan-label-dates"></div>
+        </div>
+      </div>
+
+      <!-- Jours + horaires -->
+      <div class="plan-jours-titre">Jours travaillés et horaires</div>
+      <div class="plan-jours-container" id="planning-jours"></div>
+
+      <!-- Sauf semaines -->
+      <div style="margin-top:10px">
+        <span class="plan-sem-label" style="display:block;margin-bottom:6px">Sauf semaine n°</span>
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+          <input type="number" id="travail-sauf-input" class="plan-num-input" placeholder="n°" min="1" max="53" style="width:60px">
+          <button type="button" class="plan-nav-btn" onclick="ajouterSaufSemTravail()" style="width:auto;padding:0 10px;font-size:13px;border-radius:8px">+ Exclure</button>
+        </div>
+        <div id="travail-sauf-liste" style="font-size:12px;color:var(--gris)">Aucune semaine exclue</div>
+      </div>
+    </div>
+
+    <!-- ══ PANNEAU VALENTIN ══ -->
+    <div id="valentin-row" style="display:none">
+      <div class="plan-semaine-nav">
+        <label class="form-label" style="margin-bottom:10px">💚 Planning Valentin</label>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="display:flex;gap:6px">
+            <button type="button" id="val-btn-paires" class="qui-btn actif" onclick="setValentinParite('paires')">Semaines paires</button>
+            <button type="button" id="val-btn-impaires" class="qui-btn" onclick="setValentinParite('impaires')">Semaines impaires</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <button type="button" class="plan-nav-btn" onclick="setValentinAnnee(-1)">‹</button>
+            <span id="val-annee-label" style="font-size:13px;font-weight:700;min-width:36px;text-align:center"></span>
+            <button type="button" class="plan-nav-btn" onclick="setValentinAnnee(+1)">›</button>
+          </div>
+        </div>
+        <p style="font-size:11px;color:var(--gris);margin-bottom:8px">Cliquez sur une semaine pour inverser sa présence</p>
+        <div id="valentin-panel" style="max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:3px"></div>
+      </div>
+    </div>
+
+    <!-- ══ PANNEAU SPORT ══ -->
+    <div id="sport-row" style="display:none">
+      <div class="plan-semaine-nav">
+        <label class="form-label" style="margin-bottom:10px">⚽ Récurrence sport</label>
+
+        <!-- Jours de la semaine -->
+        <div style="margin-bottom:10px">
+          <span class="plan-sem-label" style="display:block;margin-bottom:6px">Jours d'entraînement</span>
+          <div style="display:flex;gap:5px;flex-wrap:wrap" id="sport-jours-btns">
+            <button type="button" id="sport-jour-lun" class="qui-btn" style="min-width:40px;padding:7px 4px" onclick="toggleSportJour('lun')">Lun</button>
+            <button type="button" id="sport-jour-mar" class="qui-btn" style="min-width:40px;padding:7px 4px" onclick="toggleSportJour('mar')">Mar</button>
+            <button type="button" id="sport-jour-mer" class="qui-btn" style="min-width:40px;padding:7px 4px" onclick="toggleSportJour('mer')">Mer</button>
+            <button type="button" id="sport-jour-jeu" class="qui-btn" style="min-width:40px;padding:7px 4px" onclick="toggleSportJour('jeu')">Jeu</button>
+            <button type="button" id="sport-jour-ven" class="qui-btn" style="min-width:40px;padding:7px 4px" onclick="toggleSportJour('ven')">Ven</button>
+            <button type="button" id="sport-jour-sam" class="qui-btn" style="min-width:40px;padding:7px 4px" onclick="toggleSportJour('sam')">Sam</button>
+            <button type="button" id="sport-jour-dim" class="qui-btn" style="min-width:40px;padding:7px 4px" onclick="toggleSportJour('dim')">Dim</button>
+          </div>
+        </div>
+
+        <!-- Plage de semaines -->
+        <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:10px;flex-wrap:wrap">
+          <div class="plan-sem-champ">
+            <span class="plan-sem-label">Année</span>
+            <input type="number" class="plan-num-input" id="sport-annee" value="2026" min="2024" max="2030" onchange="sportAnnee=parseInt(this.value)">
+          </div>
+          <div class="plan-sem-champ">
+            <span class="plan-sem-label">De sem.</span>
+            <input type="number" id="sport-sem-deb" class="plan-num-input" value="1" min="1" max="53" onchange="majSportSem('deb')">
+          </div>
+          <div class="plan-sem-champ">
+            <span class="plan-sem-label">À sem.</span>
+            <input type="number" id="sport-sem-fin" class="plan-num-input" value="52" min="1" max="53" onchange="majSportSem('fin')">
+          </div>
+        </div>
+
+        <!-- Sauf semaines -->
+        <div>
+          <span class="plan-sem-label" style="display:block;margin-bottom:6px">Sauf semaine n°</span>
+          <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+            <input type="number" id="sport-sauf-input" class="plan-num-input" placeholder="n°" min="1" max="53" style="width:60px">
+            <button type="button" class="plan-nav-btn" onclick="ajouterSaufSem()" style="width:auto;padding:0 10px;font-size:13px">+ Exclure</button>
+          </div>
+          <div id="sport-sauf-liste" style="font-size:12px;color:var(--gris)">Aucune semaine exclue</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ PANNEAU ÉCOLE VACANCES ══ -->
+    <div id="ecole-row" style="display:none">
+      <div class="plan-semaine-nav">
+        <label class="form-label" style="margin-bottom:10px">🎒 Périodes de vacances scolaires</label>
+        <p style="font-size:11px;color:var(--gris);margin-bottom:10px">Ajoutez une ou plusieurs périodes. Un événement "Vacances [prénom]" sera créé pour chaque jour (lun–ven).</p>
+        <div style="margin-bottom:8px">
+          <label class="form-label">Prénom</label>
+          <select id="ecole-prenom" class="form-input" style="margin-bottom:8px">
+            <option value="">— Choisir —</option>
+            <option>Flora</option><option>Manon</option>
+            <option>Mendy</option><option>Valentin</option>
+            <option>Céline</option><option>Yves</option>
+          </select>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+            <div>
+              <label class="form-label">Du</label>
+              <input type="date" id="ecole-date-deb" class="form-input">
+            </div>
+            <div>
+              <label class="form-label">Au</label>
+              <input type="date" id="ecole-date-fin" class="form-input">
+            </div>
+          </div>
+          <button type="button" onclick="ajouterEcolePeriode()" style="width:100%;padding:9px;background:var(--mauve-pale);border:1.5px dashed var(--mauve-mid);border-radius:10px;color:var(--mauve-f);font-size:13px;font-weight:600;cursor:pointer">+ Ajouter cette période</button>
+        </div>
+        <div id="ecole-periodes-liste"></div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label class="form-label">Qui ?</label>
+      <div class="form-qui-grid" id="qui-grid"></div>
+    </div>
+
+    <!-- Note -->
+    <div class="form-row" id="note-row">
+      <label class="form-label" id="note-label">Note (optionnelle)</label>
+      <textarea id="ev-note" class="form-input" rows="2" style="resize:none" placeholder="Détails, discipline sportive, précision…"></textarea>
+    </div>
+
+    <button class="btn-sauver" onclick="sauvegarderEv()">💾 Enregistrer</button>
+  </div>
+</div>
+
+<!-- NAV BAS -->
+<nav class="nav-bas">
+  <a href="index.html" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M9 21V12h6v9" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Accueil
+  </a>
+  <a href="agenda.html" class="nav-item actif">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <rect x="3" y="4" width="18" height="18" rx="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M16 2v4M8 2v4M3 10h18" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Agenda
+  </a>
+  <a href="depenses.html" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" stroke-linecap="round"/>
+      <path d="M12 6v2m0 8v2M9 9.5h4.5a1.5 1.5 0 110 3h-3a1.5 1.5 0 000 3H15" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Dépenses
+  </a>
+  <a href="notes.html" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Notes
+  </a>
+  <a href="contacts.html" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="9" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Contacts
+  </a>
+</nav>
+
+</body>
+</html>

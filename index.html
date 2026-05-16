@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Céline & Yves">
+<meta name="theme-color" content="#6a2fa0">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<title>Céline & Yves</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
+<!-- ═══════════════════════════════════════════════════
+     FIREBASE CONFIG — remplacez par vos vraies valeurs
+     ═══════════════════════════════════════════════════ -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getDatabase, ref, onValue, push, set, remove, update, get }
+    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyB1cKDJSyHoUcq07yL8k7t_q3WNZ4ZaBJw",
+    authDomain: "celine-yves.firebaseapp.com",
+    databaseURL: "https://celine-yves-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "celine-yves",
+    storageBucket: "celine-yves.firebasestorage.app",
+    messagingSenderId: "1024885005035",
+    appId: "1:1024885005035:web:fd92a0a8fc07eb78a17cae"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db  = getDatabase(app);
+
+  /* ── Helpers ─────────────────────────────────────── */
+  function todayStr() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  /* ── Météo Open-Meteo — deux villes ──────────────── */
+  const VILLES = [
+    { id: "meteo-pdv", nom: "Pont-de-Veyle", lat: 46.2639, lon: 4.8878 },
+    { id: "meteo-arb", nom: "Arbent",         lat: 46.2948, lon: 5.6822 }
+  ];
+
+  const ICONES_METEO = {
+    0:"☀️",1:"🌤️",2:"⛅",3:"☁️",45:"🌫️",48:"🌫️",
+    51:"🌦️",53:"🌦️",55:"🌧️",61:"🌧️",63:"🌧️",65:"🌧️",
+    71:"❄️",73:"❄️",75:"❄️",80:"🌦️",81:"🌧️",82:"⛈️",
+    95:"⛈️",96:"⛈️",99:"⛈️"
+  };
+
+  async function loadMeteoVille(ville) {
+    const el = document.getElementById(ville.id);
+    try {
+      const r = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${ville.lat}&longitude=${ville.lon}` +
+        `&current=temperature_2m,weathercode&timezone=Europe/Paris`
+      );
+      const d = await r.json();
+      const temp = Math.round(d.current.temperature_2m);
+      const ic   = ICONES_METEO[d.current.weathercode] || "🌡️";
+      el.innerHTML = `<span class="meteo-ville">${ville.nom}</span><span class="meteo-val">${ic} ${temp}°C</span>`;
+    } catch(e) {
+      el.innerHTML = `<span class="meteo-ville">${ville.nom}</span><span class="meteo-val">🌡️ —</span>`;
+    }
+  }
+
+  async function loadMeteo() {
+    await Promise.all(VILLES.map(loadMeteoVille));
+  }
+
+  /* ── Fête du jour ─────────────────────────────────── */
+  function feteJour() {
+    const fetes = {
+      "01-01":"Jour de l'An","01-06":"Melchior","01-13":"Yvette",
+      "01-17":"Antoine","01-20":"Sébastien","01-21":"Agnès",
+      "01-24":"François de Sales","01-25":"Conversion de Paul",
+      "01-26":"Timothée","01-27":"Angèle","01-28":"Thomas d'Aquin",
+      "02-02":"Présentation","02-03":"Blaise","02-05":"Agathe",
+      "02-11":"Notre-Dame de Lourdes","02-14":"Valentin",
+      "03-08":"Jean de Dieu","03-17":"Patrick","03-19":"Joseph",
+      "03-25":"Annonciation","04-23":"Georges","04-25":"Marc",
+      "05-01":"Fête du Travail","05-03":"Philippe","05-25":"Bède",
+      "06-13":"Antoine de Padoue","06-21":"Rodolphe","06-24":"Jean-Baptiste",
+      "06-29":"Pierre","07-04":"Florent","07-14":"Fête Nationale",
+      "07-22":"Marie-Madeleine","07-25":"Jacques","07-26":"Anne",
+      "08-06":"Transfiguration","08-10":"Laurent","08-15":"Assomption",
+      "08-24":"Barthélemy","08-28":"Augustin","09-08":"Nativité de Marie",
+      "09-29":"Michel","10-01":"Thérèse","10-04":"François",
+      "10-31":"Quentin","11-01":"Toussaint","11-02":"Défunts",
+      "11-11":"Armistice","11-25":"Catherine","12-04":"Barbara",
+      "12-06":"Nicolas","12-08":"Immaculée Conception",
+      "12-24":"Réveillon","12-25":"Noël","12-26":"Étienne",
+      "12-31":"Sylvestre"
+    };
+    const now = new Date();
+    const key = String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
+    return fetes[key] || null;
+  }
+
+  /* ── Date & Heure en temps réel ───────────────────── */
+  function majDateHeure() {
+    const now = new Date();
+    const jours = ["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
+    const mois  = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+    const j = jours[now.getDay()];
+    const d = now.getDate();
+    const m = mois[now.getMonth()];
+    const a = now.getFullYear();
+    const h = String(now.getHours()).padStart(2,"0");
+    const mn = String(now.getMinutes()).padStart(2,"0");
+
+    document.getElementById("date-txt").textContent = `${j} ${d} ${m} ${a}`;
+    document.getElementById("heure-txt").textContent = `${h}:${mn}`;
+
+    const fete = feteJour();
+    const el = document.getElementById("fete-txt");
+    if (fete) { el.textContent = `✨ ${fete}`; el.style.display="block"; }
+    else       { el.style.display="none"; }
+  }
+  setInterval(majDateHeure, 1000);
+  majDateHeure();
+
+  /* ── Anniversaires ────────────────────────────────── */
+  function checkAnniversaires() {
+    const now = new Date();
+    const mmdd = String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
+    const r = ref(db, "contacts");
+    onValue(r, snap => {
+      const data = snap.val() || {};
+      const anniversaires = [];
+      Object.values(data).forEach(c => {
+        if (c.dateNaissance) {
+          const dn = c.dateNaissance.slice(5); // MM-DD
+          if (dn === mmdd) anniversaires.push(c.prenom + " " + (c.nom||""));
+        }
+      });
+      // aussi famille
+      const rf = ref(db, "famille");
+      onValue(rf, sf => {
+        const fam = sf.val() || {};
+        Object.values(fam).forEach(f => {
+          if (f.dateNaissance) {
+            const dn = f.dateNaissance.slice(5);
+            if (dn === mmdd) anniversaires.push(f.prenom || f.nom || "");
+          }
+        });
+        const el = document.getElementById("anniversaires-bloc");
+        if (anniversaires.length > 0) {
+          el.innerHTML = anniversaires.map(a => `🎂 Joyeux anniversaire <strong>${a}</strong> !`).join("<br>");
+          el.style.display = "block";
+        } else {
+          el.style.display = "none";
+        }
+      }, { onlyOnce: true });
+    }, { onlyOnce: true });
+  }
+
+  /* ── Événements du jour ───────────────────────────── */
+  function loadEvenementsJour() {
+    const today = todayStr();
+    const r = ref(db, "evenements");
+    onValue(r, snap => {
+      const data = snap.val() || {};
+      const evJour = Object.entries(data)
+        .filter(([k,v]) => v.date === today && !v.supprime)
+        .map(([k,v]) => v)
+        .sort((a,b) => (a.heure||"99:99").localeCompare(b.heure||"99:99"));
+
+      const el = document.getElementById("events-jour");
+      const badge = document.getElementById("badge-count");
+      badge.textContent = evJour.length;
+
+      if (evJour.length === 0) {
+        el.innerHTML = `<p class="rien">Aucun événement aujourd'hui</p>`;
+        return;
+      }
+      el.innerHTML = evJour.map(ev => {
+        const h = ev.heure ? `<span class="ev-heure">${ev.heure}</span>` : "";
+        const qui = ev.qui ? `<span class="ev-qui">${ev.qui}</span>` : "";
+        return `<div class="ev-item">${h}<span class="ev-titre">${ev.titre}</span>${qui}</div>`;
+      }).join("");
+    });
+  }
+
+  /* ── Prochains événements (7 jours) ──────────────── */
+  function loadProchains() {
+    const today = todayStr();
+    const dans7 = new Date(); dans7.setDate(dans7.getDate()+7);
+    const fin7  = dans7.toISOString().slice(0,10);
+    const r = ref(db,"evenements");
+    onValue(r, snap => {
+      const data = snap.val() || {};
+      const prochains = Object.entries(data)
+        .filter(([k,v]) => v.date > today && v.date <= fin7 && !v.supprime)
+        .map(([k,v]) => v)
+        .sort((a,b) => a.date.localeCompare(b.date));
+
+      const el = document.getElementById("prochains-liste");
+      if (prochains.length === 0) {
+        el.innerHTML = `<p class="rien">Rien dans les 7 prochains jours</p>`;
+        return;
+      }
+      const joursF = ["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];
+      el.innerHTML = prochains.slice(0,5).map(ev => {
+        const d = new Date(ev.date+"T12:00:00");
+        const label = `${joursF[d.getDay()]} ${d.getDate()}`;
+        const h = ev.heure ? ` ${ev.heure}` : "";
+        return `<div class="prochain-item"><span class="prochain-date">${label}</span><span class="prochain-titre">${ev.titre}${h}</span></div>`;
+      }).join("");
+    });
+  }
+
+  /* ── Dernière liste de courses ────────────────────── */
+  function loadDerniereListe() {
+    const r = ref(db,"listes-courses");
+    onValue(r, snap => {
+      const data = snap.val() || {};
+      const listes = Object.entries(data)
+        .filter(([k,v]) => !v.supprime)
+        .sort((a,b) => (b[1].createdAt||"").localeCompare(a[1].createdAt||""));
+
+      const el = document.getElementById("courses-bloc");
+      const titre = document.getElementById("courses-titre");
+      if (listes.length === 0) { el.style.display="none"; return; }
+
+      const [key, liste] = listes[0];
+      titre.textContent = liste.nom || "Liste de courses";
+      const items = Object.values(liste.items || {}).filter(i => !i.coche);
+      const cochés = Object.values(liste.items || {}).filter(i => i.coche);
+
+      document.getElementById("courses-items").innerHTML =
+        items.map(i => `<span class="course-tag">${i.nom}</span>`).join("") +
+        cochés.map(i => `<span class="course-tag fait">${i.nom}</span>`).join("");
+
+      el.style.display = "block";
+    });
+  }
+
+  /* ── Note importante ─────────────────────────────── */
+  function loadNoteImportante() {
+    const r = ref(db,"notes");
+    onValue(r, snap => {
+      const data = snap.val() || {};
+      const importantes = Object.values(data)
+        .filter(n => n.importante && !n.supprime)
+        .sort((a,b) => (b.modifiedAt||"").localeCompare(a.modifiedAt||""));
+
+      const el = document.getElementById("note-bloc");
+      if (importantes.length === 0) { el.style.display="none"; return; }
+      const n = importantes[0];
+      document.getElementById("note-contenu").textContent = n.contenu || "";
+      el.style.display = "block";
+    });
+  }
+
+  /* ── Lancement ───────────────────────────────────── */
+  loadMeteo();
+  checkAnniversaires();
+  loadEvenementsJour();
+  loadProchains();
+  loadDerniereListe();
+  loadNoteImportante();
+
+  /* ── Badge + Notifications ────────────────── */
+  onValue(ref(db,"evenements"), snap => {
+    const evts = snap.val() || {};
+    const today = new Date().toISOString().slice(0,10);
+    const evJour = Object.values(evts).filter(v => !v.supprime && v.date === today);
+    const count  = evJour.length;
+
+    // Badge numérique sur le cœur du milieu
+    const badge = document.getElementById("badge-count");
+    if (badge) badge.textContent = count;
+
+    // Badge icône PWA
+    if (window.majBadge) window.majBadge(count);
+
+    // Notification si nouvelle entrée depuis la dernière visite
+    const lastSeen = localStorage.getItem('lastSeen_ev') || '';
+    const nouvelles = Object.values(evts).filter(v =>
+      !v.supprime && v.createdAt && v.createdAt > lastSeen
+    );
+    if (nouvelles.length > 0 && lastSeen && window.envoyerNotification) {
+      const n = nouvelles[0];
+      window.envoyerNotification(
+        '📅 Nouvel événement — Céline & Yves',
+        (n.titre||'Nouveau') + (n.date?' le '+n.date.split('-').reverse().join('/'):'' ),
+        '/agenda.html'
+      );
+    }
+    localStorage.setItem('lastSeen_ev', new Date().toISOString());
+  });
+</script>
+<script src="/pwa.js"></script>
+
+<style>
+/* ═══════════════════════════
+   BASE
+═══════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --rose:     #9b6fc4;
+  --rose-pale:#f0e8f9;
+  --rouge:    #7a4fa8;
+  --or:       #b07ecb;
+  --or-pale:  #f5edfb;
+  --bleu:     #7a4fa8;
+  --bleu-pale:#ede4f7;
+  --vert:     #7a4fa8;
+  --vert-pale:#ede4f7;
+  --gris:     #6b5d7a;
+  --gris-pale:#f2edf8;
+  --blanc:    #ffffff;
+  --fond:     #f7f2fc;
+  --texte:    #2a1a3e;
+  --radius:   16px;
+  --shadow:   0 2px 16px rgba(120,80,180,0.10);
+}
+
+html, body {
+  height: 100%;
+  font-family: 'DM Sans', sans-serif;
+  background: var(--fond);
+  color: var(--texte);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0 0 80px;
+  overflow-x: hidden;
+}
+
+/* ═══════════════════════════
+   HEADER
+═══════════════════════════ */
+.header {
+  background: linear-gradient(135deg, #6a2fa0 0%, #9b6fc4 60%, #c9a8e8 100%);
+  color: #fff;
+  padding: 20px 20px 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.header::before {
+  content: "";
+  position: absolute;
+  top: -40px; right: -40px;
+  width: 200px; height: 200px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.04);
+}
+
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.app-titre {
+  font-family: 'Playfair Display', serif;
+  font-size: 26px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+}
+
+.app-titre span { color: var(--rose); }
+
+/* badge cœurs */
+.badge-coeurs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  position: relative;
+}
+
+.coeur {
+  font-size: 24px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
+  animation: pulse 2.5s ease-in-out infinite;
+}
+.coeur:nth-child(2) { animation-delay: 0.3s; }
+.coeur:nth-child(3) { animation-delay: 0.6s; }
+
+@keyframes pulse {
+  0%,100% { transform: scale(1); }
+  50%      { transform: scale(1.12); }
+}
+
+.badge-count {
+  position: absolute;
+  top: -4px; left: 50%;
+  transform: translateX(-50%);
+  background: #7a4fa8;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  border: 2px solid #6a2fa0;
+}
+
+/* date/heure/météo */
+.header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.date-ligne {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+#date-txt {
+  font-size: 13px;
+  color: rgba(255,255,255,0.80);
+  text-transform: capitalize;
+}
+
+#heure-txt {
+  font-family: 'Playfair Display', serif;
+  font-size: 22px;
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+/* météo deux villes */
+.meteo-deux {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.meteo-bloc {
+  display: flex;
+  flex-direction: column;
+  background: rgba(255,255,255,0.15);
+  border-radius: 10px;
+  padding: 5px 11px;
+  backdrop-filter: blur(4px);
+  min-width: 110px;
+}
+
+.meteo-ville {
+  font-size: 10px;
+  color: rgba(255,255,255,0.70);
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.meteo-val {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  margin-top: 1px;
+}
+
+#fete-txt {
+  font-size: 12px;
+  color: var(--or);
+  display: none;
+  margin-top: 4px;
+}
+
+/* ═══════════════════════════
+   ANNIVERSAIRES
+═══════════════════════════ */
+#anniversaires-bloc {
+  display: none;
+  background: linear-gradient(135deg, #f0e8f9, #e8d8f5);
+  border-left: 4px solid #9b6fc4;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: #6a2fa0;
+  font-weight: 500;
+}
+
+/* ═══════════════════════════
+   SECTIONS
+═══════════════════════════ */
+.section {
+  margin: 16px 16px 0;
+  background: var(--blanc);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid #f0eff5;
+}
+
+.section-titre {
+  font-family: 'Playfair Display', serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--texte);
+}
+
+.section-lien {
+  font-size: 12px;
+  color: #9b6fc4;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.section-body {
+  padding: 12px 16px 14px;
+}
+
+/* ═══════════════════════════
+   ÉVÉNEMENTS DU JOUR
+═══════════════════════════ */
+.ev-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid #f5f4fa;
+}
+.ev-item:last-child { border-bottom: none; }
+
+.ev-heure {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--bleu);
+  min-width: 36px;
+}
+
+.ev-titre {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--texte);
+  flex: 1;
+}
+
+.ev-qui {
+  font-size: 11px;
+  color: var(--gris);
+  background: var(--gris-pale);
+  padding: 1px 7px;
+  border-radius: 10px;
+}
+
+.rien {
+  font-size: 13px;
+  color: var(--gris);
+  text-align: center;
+  padding: 8px 0;
+  font-style: italic;
+}
+
+/* ═══════════════════════════
+   LISTE DE COURSES
+═══════════════════════════ */
+#courses-bloc { display: none; }
+
+.course-tag {
+  display: inline-block;
+  background: var(--vert-pale);
+  color: var(--vert);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 20px;
+  margin: 3px 3px 3px 0;
+}
+
+.course-tag.fait {
+  background: var(--gris-pale);
+  color: var(--gris);
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+/* ═══════════════════════════
+   NOTE IMPORTANTE
+═══════════════════════════ */
+#note-bloc { display: none; }
+
+.note-icone {
+  width: 28px; height: 28px;
+  background: #9b6fc4;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+#note-contenu {
+  font-size: 14px;
+  color: var(--texte);
+  line-height: 1.6;
+  background: var(--or-pale);
+  border-left: 3px solid #9b6fc4;
+  padding: 10px 12px;
+  border-radius: 0 8px 8px 0;
+  white-space: pre-wrap;
+  margin-top: 8px;
+}
+
+/* ═══════════════════════════
+   PROCHAINS ÉVÉNEMENTS
+═══════════════════════════ */
+.prochain-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid #f5f4fa;
+}
+.prochain-item:last-child { border-bottom: none; }
+
+.prochain-date {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--bleu);
+  background: var(--bleu-pale);
+  padding: 2px 8px;
+  border-radius: 10px;
+  min-width: 48px;
+  text-align: center;
+}
+
+.prochain-titre {
+  font-size: 13px;
+  color: var(--texte);
+  flex: 1;
+}
+
+/* ═══════════════════════════
+   NAV BAS
+═══════════════════════════ */
+.nav-bas {
+  position: fixed;
+  bottom: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  background: var(--blanc);
+  border-top: 1px solid #e8e7f0;
+  display: flex;
+  justify-content: space-around;
+  padding: 8px 0 12px;
+  z-index: 100;
+  box-shadow: 0 -2px 16px rgba(0,0,0,0.06);
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  text-decoration: none;
+  color: var(--gris);
+  font-size: 10px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 10px;
+  transition: color 0.2s, background 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.nav-item.actif, .nav-item:active {
+  color: var(--rose);
+  background: var(--rose-pale);
+}
+
+.nav-item svg {
+  width: 22px; height: 22px;
+  stroke-width: 1.7;
+}
+
+/* ═══════════════════════════
+   BOUTON FLOTTANT
+═══════════════════════════ */
+.fab {
+  position: fixed;
+  bottom: 80px; right: 20px;
+  width: 54px; height: 54px;
+  background: linear-gradient(135deg, #9b6fc4, #6a2fa0);
+  border-radius: 50%;
+  border: none;
+  color: #fff;
+  font-size: 26px;
+  font-weight: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 20px rgba(155,111,196,0.50);
+  cursor: pointer;
+  z-index: 99;
+  text-decoration: none;
+  transition: transform 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+.fab:active { transform: scale(0.93); }
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══════════════════════════════════ -->
+<header class="header">
+  <div class="header-top">
+    <div>
+      <div class="app-titre">Céline <span>&</span> Yves</div>
+    </div>
+    <!-- Badge 3 cœurs avec compteur activités -->
+    <a href="agenda.html" style="text-decoration:none">
+      <div class="badge-coeurs">
+        <span class="coeur">❤️</span>
+        <span class="coeur" style="position:relative">
+          ❤️
+          <span class="badge-count" id="badge-count">0</span>
+        </span>
+        <span class="coeur">❤️</span>
+      </div>
+    </a>
+  </div>
+
+  <div class="header-info">
+    <div class="date-ligne">
+      <span id="heure-txt">--:--</span>
+      <span id="date-txt">—</span>
+    </div>
+    <span id="fete-txt"></span>
+    <div class="meteo-deux">
+      <div class="meteo-bloc" id="meteo-pdv">
+        <span class="meteo-ville">Pont-de-Veyle</span>
+        <span class="meteo-val">🌡️ …</span>
+      </div>
+      <div class="meteo-bloc" id="meteo-arb">
+        <span class="meteo-ville">Arbent</span>
+        <span class="meteo-val">🌡️ …</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ═══ ANNIVERSAIRES ══════════════════════════════ -->
+<div id="anniversaires-bloc"></div>
+
+<!-- ═══ ÉVÉNEMENTS DU JOUR ═════════════════════════ -->
+<section class="section">
+  <div class="section-header">
+    <span class="section-titre">📅 Aujourd'hui</span>
+    <a href="agenda.html" class="section-lien">Agenda →</a>
+  </div>
+  <div class="section-body">
+    <div id="events-jour"><p class="rien">Chargement…</p></div>
+  </div>
+</section>
+
+<!-- ═══ DERNIÈRE LISTE DE COURSES ══════════════════ -->
+<section class="section" id="courses-bloc">
+  <div class="section-header">
+    <span class="section-titre">🛒 <span id="courses-titre">Liste de courses</span></span>
+    <a href="courses.html" class="section-lien">Voir →</a>
+  </div>
+  <div class="section-body">
+    <div id="courses-items"></div>
+  </div>
+</section>
+
+<!-- ═══ NOTE IMPORTANTE ═════════════════════════════ -->
+<section class="section" id="note-bloc">
+  <div class="section-header">
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="note-icone">📌</div>
+      <span class="section-titre">Note importante</span>
+    </div>
+    <a href="notes.html" class="section-lien">Notes →</a>
+  </div>
+  <div class="section-body">
+    <div id="note-contenu"></div>
+  </div>
+</section>
+
+<!-- ═══ PROCHAINS ÉVÉNEMENTS ════════════════════════ -->
+<section class="section">
+  <div class="section-header">
+    <span class="section-titre">🗓️ Prochains événements</span>
+    <a href="agenda.html" class="section-lien">Tout voir →</a>
+  </div>
+  <div class="section-body">
+    <div id="prochains-liste"><p class="rien">Chargement…</p></div>
+  </div>
+</section>
+
+<!-- ═══ FAB — Nouvel événement ══════════════════════ -->
+<a href="agenda.html#nouveau" class="fab" title="Nouvel événement">＋</a>
+
+<!-- ═══ NAV BAS ═══════════════════════════════════ -->
+<nav class="nav-bas">
+  <a href="index.html" class="nav-item actif">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg">
+      <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M9 21V12h6v9" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Accueil
+  </a>
+  <a href="agenda.html" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <rect x="3" y="4" width="18" height="18" rx="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M16 2v4M8 2v4M3 10h18" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Agenda
+  </a>
+  <a href="depenses.html" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" stroke-linecap="round"/>
+      <path d="M12 6v2m0 8v2M9 9.5h4.5a1.5 1.5 0 110 3h-3a1.5 1.5 0 000 3H15" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Dépenses
+  </a>
+  <a href="notes.html" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Notes
+  </a>
+  <a href="contacts.html" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="9" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Contacts
+  </a>
+</nav>
+
+</body>
+</html>

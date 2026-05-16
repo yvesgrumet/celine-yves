@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Famille — Céline & Yves</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --mauve:#9b6fc4;--mauve-f:#6a2fa0;--mauve-pale:#f0e8f9;--mauve-mid:#d4b8ef;
+  --vert:#2e7d52;--vert-pale:#e6f4ec;
+  --rouge:#c0392b;--rouge-pale:#fde8e8;
+  --or:#c9963a;--or-pale:#fdf4e3;--or-mid:#f0d080;
+  --bleu:#3a6bbf;--bleu-pale:#e8eef9;
+  --texte:#2a1a3e;--gris:#6b5d7a;--gris-pale:#f2edf8;
+  --blanc:#fff;--fond:#f7f2fc;--radius:14px;
+  --shadow:0 2px 16px rgba(120,80,180,.10);
+}
+html,body{
+  height:100%;font-family:'DM Sans',sans-serif;
+  background:var(--fond);color:var(--texte);font-size:15px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  max-width:480px;margin:0 auto;padding-bottom:80px;overflow-x:hidden;
+}
+
+/* HEADER */
+.header{
+  background:linear-gradient(135deg,#6a2fa0,#9b6fc4 60%,#c9a8e8);
+  color:#fff;padding:18px 20px 16px;
+  display:flex;align-items:center;gap:12px;
+}
+.header a{color:#fff;text-decoration:none;font-size:22px;}
+.header-titre{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;flex:1;}
+.header-titre span{font-size:13px;font-weight:400;opacity:.75;display:block;}
+.header-btn{
+  background:rgba(255,255,255,.2);border:none;border-radius:50%;
+  width:36px;height:36px;color:#fff;font-size:20px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+
+/* LISTE */
+.liste{padding:12px;}
+
+/* CARTE PERSONNE */
+.fiche{
+  background:var(--blanc);border-radius:var(--radius);
+  box-shadow:var(--shadow);margin-bottom:14px;overflow:hidden;
+}
+.fiche-header{
+  display:flex;align-items:center;gap:14px;
+  padding:16px 16px 12px;
+  border-bottom:1px solid var(--mauve-pale);
+}
+.fiche-avatar{
+  width:56px;height:56px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Playfair Display',serif;font-size:22px;font-weight:700;
+  color:#fff;flex-shrink:0;
+}
+.fiche-nom-bloc{flex:1;min-width:0;}
+.fiche-nom{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;}
+.fiche-role{font-size:12px;color:var(--gris);margin-top:2px;}
+.fiche-anniv{font-size:12px;color:var(--or);font-weight:600;margin-top:2px;}
+.fiche-anniv.auj{color:var(--vert);}
+.fiche-header-btns{display:flex;gap:6px;}
+.btn-rond{
+  width:34px;height:34px;border-radius:50%;border:none;
+  display:flex;align-items:center;justify-content:center;
+  font-size:15px;cursor:pointer;transition:opacity .15s;
+  -webkit-tap-highlight-color:transparent;
+}
+.btn-rond.edit{background:var(--mauve-pale);color:var(--mauve-f);}
+.btn-rond.del{background:var(--rouge-pale);color:var(--rouge);}
+.btn-rond:active{opacity:.7;}
+
+/* INFOS */
+.fiche-infos{padding:12px 16px;}
+.info-ligne{
+  display:flex;align-items:flex-start;gap:10px;
+  padding:6px 0;border-bottom:1px solid #f5f2fa;
+}
+.info-ligne:last-child{border-bottom:none;}
+.info-label{
+  font-size:11px;font-weight:700;color:var(--gris);
+  text-transform:uppercase;letter-spacing:.3px;
+  min-width:80px;padding-top:1px;
+}
+.info-val{font-size:14px;color:var(--texte);flex:1;}
+.info-tel-btns{display:flex;gap:6px;margin-top:4px;}
+.tel-btn{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;
+  text-decoration:none;border:none;cursor:pointer;
+}
+.tel-btn.appel{background:var(--vert-pale);color:var(--vert);}
+.tel-btn.wa{background:#e8fce8;color:#25d366;}
+
+/* PASSIONS */
+.fiche-passions{padding:10px 16px 14px;}
+.passions-titre{
+  font-size:11px;font-weight:700;color:var(--gris);
+  text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px;
+}
+.passions-tags{display:flex;flex-wrap:wrap;gap:6px;}
+.passion-tag{
+  display:flex;align-items:center;gap:5px;
+  background:var(--mauve-pale);color:var(--mauve-f);
+  font-size:13px;font-weight:500;padding:5px 10px;border-radius:20px;
+}
+.passion-del{
+  background:none;border:none;color:var(--mauve-f);
+  font-size:13px;cursor:pointer;padding:0;line-height:1;opacity:.6;
+}
+.passion-del:active{opacity:1;}
+.passion-add-zone{display:flex;gap:6px;margin-top:8px;}
+.passion-inp{
+  flex:1;padding:7px 12px;border-radius:20px;
+  border:1.5px solid var(--mauve-mid);font-size:13px;
+  font-family:'DM Sans',sans-serif;background:var(--blanc);outline:none;
+}
+.passion-inp:focus{border-color:var(--mauve);}
+.passion-add-btn{
+  padding:7px 14px;border-radius:20px;border:none;
+  background:var(--mauve);color:#fff;font-size:13px;font-weight:700;cursor:pointer;
+}
+
+/* VIDE passions */
+.passions-vide{font-size:12px;color:var(--gris);font-style:italic;}
+
+/* MODAL */
+#modal-overlay{
+  display:none;position:fixed;inset:0;
+  background:rgba(42,26,62,.55);z-index:200;
+  align-items:flex-end;justify-content:center;
+  backdrop-filter:blur(3px);
+}
+.modal{
+  background:var(--blanc);border-radius:20px 20px 0 0;
+  width:100%;max-width:480px;padding:20px 20px 36px;
+  max-height:90vh;overflow-y:auto;animation:slideUp .25s ease;
+}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
+.modal-hdr-titre{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;}
+.modal-close{
+  background:var(--gris-pale);border:none;border-radius:50%;
+  width:32px;height:32px;font-size:18px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;color:var(--gris);
+}
+.form-row{margin-bottom:14px;}
+.form-label{
+  display:block;font-size:12px;font-weight:600;color:var(--gris);
+  margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px;
+}
+.form-input{
+  width:100%;padding:10px 12px;border-radius:10px;
+  border:1.5px solid var(--mauve-mid);font-size:14px;
+  font-family:'DM Sans',sans-serif;color:var(--texte);
+  background:var(--blanc);outline:none;transition:border-color .15s;
+}
+.form-input:focus{border-color:var(--mauve);}
+.form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.btn-sauver{
+  width:100%;padding:14px;margin-top:8px;
+  background:linear-gradient(135deg,var(--mauve-f),var(--mauve));
+  border:none;border-radius:12px;color:#fff;
+  font-size:15px;font-weight:700;cursor:pointer;
+  font-family:'DM Sans',sans-serif;
+}
+.btn-sauver:active{opacity:.85;}
+
+/* UNDO */
+#undo-bar{
+  display:none;position:fixed;bottom:88px;left:50%;
+  transform:translateX(-50%);width:calc(100% - 32px);max-width:448px;
+  background:#2a1a3e;color:#fff;border-radius:12px;
+  padding:12px 16px;z-index:300;
+  align-items:center;justify-content:space-between;
+  box-shadow:0 4px 20px rgba(0,0,0,.25);
+}
+#undo-bar span{font-size:13px;}
+#undo-bar button{
+  background:var(--mauve-pale);border:none;border-radius:8px;
+  padding:6px 12px;font-size:13px;font-weight:700;color:var(--mauve-f);cursor:pointer;
+}
+
+/* NAV BAS */
+.nav-bas{
+  position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+  width:100%;max-width:480px;background:var(--blanc);
+  border-top:1px solid #e8e0f5;display:flex;
+  justify-content:space-around;padding:8px 0 12px;
+  z-index:100;box-shadow:0 -2px 16px rgba(120,80,180,.07);
+}
+.nav-item{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  text-decoration:none;color:var(--gris);font-size:10px;font-weight:500;
+  padding:4px 8px;border-radius:10px;
+  transition:color .2s,background .2s;-webkit-tap-highlight-color:transparent;
+}
+.nav-item.actif,.nav-item:active{color:var(--mauve-f);background:var(--mauve-pale);}
+.nav-item svg{width:22px;height:22px;stroke-width:1.7;}
+.rien{font-size:13px;color:var(--gris);text-align:center;padding:30px 0;font-style:italic;}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <a href="index.html">←</a>
+  <div class="header-titre">Famille<span>Céline & Yves</span></div>
+  <button class="header-btn" onclick="ouvrirFormulaire(null)" title="Ajouter une personne">+</button>
+</header>
+
+<div class="liste" id="famille-liste">
+  <p class="rien">Chargement…</p>
+</div>
+
+<!-- UNDO -->
+<div id="undo-bar">
+  <span>Personne supprimée</span>
+  <button onclick="annulerSuppr()">↩ Annuler</button>
+</div>
+
+<!-- MODAL FICHE -->
+<div id="modal-overlay" onclick="if(event.target===this)fermerModal()">
+  <div class="modal">
+    <div class="modal-hdr">
+      <span class="modal-hdr-titre" id="form-titre">Nouvelle personne</span>
+      <button class="modal-close" onclick="fermerModal()">✕</button>
+    </div>
+
+    <div class="form-row-2">
+      <div>
+        <label class="form-label">Prénom *</label>
+        <input id="f-prenom" class="form-input" type="text" placeholder="Prénom">
+      </div>
+      <div>
+        <label class="form-label">Nom</label>
+        <input id="f-nom" class="form-input" type="text" placeholder="Nom">
+      </div>
+    </div>
+
+    <div class="form-row">
+      <label class="form-label">Rôle / Lien</label>
+      <input id="f-role" class="form-input" type="text" placeholder="Ex : Maman, Fils, Sœur…">
+    </div>
+
+    <div class="form-row">
+      <label class="form-label">Date de naissance</label>
+      <input id="f-naissance" class="form-input" type="date">
+    </div>
+
+    <div class="form-row">
+      <label class="form-label">Téléphone</label>
+      <input id="f-tel" class="form-input" type="tel" placeholder="Ex : 06 12 34 56 78">
+    </div>
+
+    <div class="form-row">
+      <label class="form-label">Email</label>
+      <input id="f-email" class="form-input" type="email" placeholder="adresse@email.com">
+    </div>
+
+    <div class="form-row">
+      <label class="form-label">Note</label>
+      <input id="f-note" class="form-input" type="text" placeholder="Info complémentaire…">
+    </div>
+
+    <button class="btn-sauver" onclick="sauvegarderFiche()">💾 Enregistrer</button>
+  </div>
+</div>
+
+<!-- NAV BAS -->
+<nav class="nav-bas">
+  <a href="index.html" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M9 21V12h6v9" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>Accueil
+  </a>
+  <a href="agenda.html" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <rect x="3" y="4" width="18" height="18" rx="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M16 2v4M8 2v4M3 10h18" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>Agenda
+  </a>
+  <a href="depenses.html" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" stroke-linecap="round"/>
+      <path d="M12 6v2m0 8v2M9 9.5h4.5a1.5 1.5 0 110 3h-3a1.5 1.5 0 000 3H15" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>Dépenses
+  </a>
+  <a href="notes.html" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>Notes
+  </a>
+  <a href="contacts.html" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="9" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>Contacts
+  </a>
+</nav>
+
+<script>
+/* ── Firebase ───────────────────────────────── */
+firebase.initializeApp({
+  apiKey: "AIzaSyB1cKDJSyHoUcq07yL8k7t_q3WNZ4ZaBJw",
+  authDomain: "celine-yves.firebaseapp.com",
+  databaseURL: "https://celine-yves-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "celine-yves",
+  storageBucket: "celine-yves.firebasestorage.app",
+  messagingSenderId: "1024885005035",
+  appId: "1:1024885005035:web:fd92a0a8fc07eb78a17cae"
+});
+var db = firebase.database();
+
+/* ── État ──────────────────────────────────── */
+var famille  = {};
+var editKey  = null;
+var lastDel  = null;
+
+/* ── Couleurs ──────────────────────────────── */
+var COULEURS = [
+  '#9b6fc4','#3a6bbf','#c46f9b','#2e7d52',
+  '#c4a46f','#c46f6f','#6fc4c4','#a46fc4','#c9963a'
+];
+function couleur(nom) {
+  var code=0;
+  for(var i=0;i<nom.length;i++) code+=nom.charCodeAt(i);
+  return COULEURS[code%COULEURS.length];
+}
+
+/* ── Listener ──────────────────────────────── */
+db.ref("famille").on("value", function(s) {
+  famille = s.val() || {};
+  render();
+});
+
+/* ── Anniversaire ──────────────────────────── */
+function infoAnniv(dn) {
+  if (!dn) return null;
+  var today = new Date();
+  var todayMD = String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+  var dnMD = dn.slice(5);
+  var age = today.getFullYear() - parseInt(dn.slice(0,4));
+  var mois=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  var p = dn.split('-');
+  var label = parseInt(p[2])+' '+mois[parseInt(p[1])-1]+' '+p[0]+' ('+age+' ans)';
+  return { label:label, age:age, auj: dnMD===todayMD };
+}
+
+/* ── Rendu ─────────────────────────────────── */
+function render() {
+  // Ordre : Céline en 1er, Yves en 2ème, puis les autres par ordre de création
+  var ordre = ['celine','yves'];
+  var keys = Object.keys(famille).filter(function(k){ return !famille[k].supprime; });
+  keys.sort(function(a,b){
+    var ia=ordre.indexOf(a), ib=ordre.indexOf(b);
+    if(ia>=0&&ib>=0) return ia-ib;
+    if(ia>=0) return -1;
+    if(ib>=0) return 1;
+    return (famille[a].createdAt||'').localeCompare(famille[b].createdAt||'');
+  });
+
+  var el = document.getElementById('famille-liste');
+  if(keys.length===0){
+    el.innerHTML='<p class="rien">Aucune personne — appuyez sur + pour commencer</p>';
+    return;
+  }
+
+  el.innerHTML = keys.map(function(key){
+    var p = famille[key];
+    var nom = (p.prenom||'') + (p.nom?' '+p.nom:'');
+    var initiale = (p.prenom||'?')[0].toUpperCase();
+    var col = couleur(nom||key);
+    var anniv = infoAnniv(p.dateNaissance);
+    var passions = p.passions || [];
+
+    // Tel / WhatsApp
+    var telHtml = '';
+    if(p.tel){
+      var waNum = p.tel.replace(/\D/g,'');
+      if(waNum.startsWith('0')) waNum='33'+waNum.slice(1);
+      telHtml = '<div class="info-val">'+escHtml(p.tel)+
+        '<div class="info-tel-btns">'+
+          '<a href="tel:'+p.tel.replace(/\s/g,'')+'" class="tel-btn appel">📞 Appeler</a>'+
+          '<a href="https://wa.me/'+waNum+'" class="tel-btn wa" target="_blank">💬 WhatsApp</a>'+
+        '</div></div>';
+    } else {
+      telHtml = '<div class="info-val" style="color:var(--gris);font-style:italic">Non renseigné</div>';
+    }
+
+    // Passions tags
+    var passionsHtml = passions.length===0
+      ? '<span class="passions-vide">Aucune passion renseignée</span>'
+      : passions.map(function(pa,i){
+          return '<span class="passion-tag">'+escHtml(pa)+
+            '<button class="passion-del" onclick="supprimerPassion(\''+key+'\','+i+')" title="Retirer">✕</button>'+
+          '</span>';
+        }).join('');
+
+    return '<div class="fiche" id="fiche-'+key+'">' +
+      '<div class="fiche-header">' +
+        '<div class="fiche-avatar" style="background:'+col+'">'+initiale+'</div>' +
+        '<div class="fiche-nom-bloc">' +
+          '<div class="fiche-nom">'+escHtml(nom)+'</div>' +
+          (p.role ? '<div class="fiche-role">'+escHtml(p.role)+'</div>' : '') +
+          (anniv ? '<div class="fiche-anniv'+(anniv.auj?' auj':'')+'">'+
+            (anniv.auj?'🎂 Anniversaire aujourd\'hui ! ':'🎂 ')+anniv.label+'</div>' : '') +
+        '</div>' +
+        '<div class="fiche-header-btns">' +
+          '<button class="btn-rond edit" onclick="ouvrirFormulaire(\''+key+'\')" title="Modifier">✏️</button>' +
+          (key!=='celine'&&key!=='yves'?
+            '<button class="btn-rond del" onclick="supprimerFiche(\''+key+'\')" title="Supprimer">🗑️</button>':'')+
+        '</div>' +
+      '</div>' +
+      '<div class="fiche-infos">' +
+        '<div class="info-ligne"><span class="info-label">Naissance</span>' +
+          (anniv?'<div class="info-val">'+anniv.label+'</div>':'<div class="info-val" style="color:var(--gris);font-style:italic">Non renseignée</div>')+
+        '</div>' +
+        '<div class="info-ligne"><span class="info-label">Téléphone</span>'+telHtml+'</div>' +
+        (p.email?'<div class="info-ligne"><span class="info-label">Email</span><div class="info-val"><a href="mailto:'+p.email+'" style="color:var(--mauve-f)">'+escHtml(p.email)+'</a></div></div>':'')+
+        (p.note?'<div class="info-ligne"><span class="info-label">Note</span><div class="info-val">'+escHtml(p.note)+'</div></div>':'')+
+      '</div>' +
+      '<div class="fiche-passions">' +
+        '<div class="passions-titre">❤️ Passions</div>' +
+        '<div class="passions-tags" id="ptags-'+key+'">'+passionsHtml+'</div>' +
+        '<div class="passion-add-zone">' +
+          '<input type="text" class="passion-inp" id="pinp-'+key+'"' +
+            ' placeholder="Ajouter une passion…"' +
+            ' onkeydown="if(event.key===\'Enter\'){ajouterPassion(\''+key+'\');event.preventDefault();}">' +
+          '<button class="passion-add-btn" onclick="ajouterPassion(\''+key+'\')">+</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function escHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ── Passions ──────────────────────────────── */
+function ajouterPassion(key) {
+  var inp = document.getElementById('pinp-'+key);
+  var val = inp.value.trim();
+  if (!val) return;
+  var passions = (famille[key].passions||[]).slice();
+  passions.push(val);
+  famille[key].passions = passions;
+  inp.value = '';
+  db.ref("famille/"+key+"/passions").set(passions);
+  render();
+}
+
+function supprimerPassion(key, i) {
+  var passions = (famille[key].passions||[]).slice();
+  passions.splice(i,1);
+  famille[key].passions = passions;
+  db.ref("famille/"+key+"/passions").set(passions);
+  render();
+}
+
+/* ── Formulaire ────────────────────────────── */
+function ouvrirFormulaire(key) {
+  editKey = key;
+  var p = key ? (famille[key]||{}) : {};
+  document.getElementById('form-titre').textContent = key ? 'Modifier '+( p.prenom||'') : 'Nouvelle personne';
+  document.getElementById('f-prenom').value    = p.prenom       || '';
+  document.getElementById('f-nom').value       = p.nom          || '';
+  document.getElementById('f-role').value      = p.role         || '';
+  document.getElementById('f-naissance').value = p.dateNaissance|| '';
+  document.getElementById('f-tel').value       = p.tel          || '';
+  document.getElementById('f-email').value     = p.email        || '';
+  document.getElementById('f-note').value      = p.note         || '';
+  document.getElementById('modal-overlay').style.display = 'flex';
+  setTimeout(function(){ document.getElementById('f-prenom').focus(); }, 200);
+}
+
+function fermerModal() {
+  document.getElementById('modal-overlay').style.display = 'none';
+  editKey = null;
+}
+
+function sauvegarderFiche() {
+  var prenom = document.getElementById('f-prenom').value.trim();
+  if (!prenom) { alert('Le prénom est obligatoire'); return; }
+
+  var data = {
+    prenom:        prenom,
+    nom:           document.getElementById('f-nom').value.trim()       || null,
+    role:          document.getElementById('f-role').value.trim()      || null,
+    dateNaissance: document.getElementById('f-naissance').value        || null,
+    tel:           document.getElementById('f-tel').value.trim()       || null,
+    email:         document.getElementById('f-email').value.trim()     || null,
+    note:          document.getElementById('f-note').value.trim()      || null,
+    modifiedAt:    new Date().toISOString(),
+    supprime:      false
+  };
+
+  if (editKey) {
+    // Conserver passions et revenu existants
+    data.passions = famille[editKey].passions || [];
+    data.revenu   = famille[editKey].revenu   || 0;
+    famille[editKey] = Object.assign(famille[editKey]||{}, data);
+    db.ref("famille/"+editKey).update(data);
+  } else {
+    // Nouvelle personne : clé = prénom en minuscule sans accent, ou timestamp
+    var key = prenom.toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+      .replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'')
+      || 'p'+Date.now();
+    data.createdAt = new Date().toISOString();
+    data.passions  = [];
+    famille[key]   = data;
+    db.ref("famille/"+key).set(data);
+  }
+  fermerModal();
+  render();
+}
+
+/* ── Suppression + undo ────────────────────── */
+function supprimerFiche(key) {
+  var p = famille[key];
+  if (!p) return;
+  lastDel = { key:key, data:Object.assign({},p) };
+  famille[key].supprime = true;
+  render();
+  db.ref("famille/"+key).update({ supprime:true, suppressAt:new Date().toISOString() });
+  var bar = document.getElementById('undo-bar');
+  bar.style.display = 'flex';
+  clearTimeout(window._ut);
+  window._ut = setTimeout(function(){ bar.style.display='none'; lastDel=null; }, 6000);
+}
+
+function annulerSuppr() {
+  if (!lastDel) return;
+  famille[lastDel.key].supprime = false;
+  render();
+  db.ref("famille/"+lastDel.key).update({ supprime:false, suppressAt:null });
+  document.getElementById('undo-bar').style.display = 'none';
+  lastDel = null;
+}
+</script>
+</body>
+</html>

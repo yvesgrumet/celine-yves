@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Contacts — Céline & Yves</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --mauve:#9b6fc4;--mauve-f:#6a2fa0;--mauve-pale:#f0e8f9;--mauve-mid:#d4b8ef;
+  --vert:#2e7d52;--vert-pale:#e6f4ec;
+  --rouge:#c0392b;--rouge-pale:#fde8e8;
+  --or:#c9963a;--or-pale:#fdf4e3;
+  --texte:#2a1a3e;--gris:#6b5d7a;--gris-pale:#f2edf8;
+  --blanc:#fff;--fond:#f7f2fc;--radius:14px;
+  --shadow:0 2px 16px rgba(120,80,180,.10);
+}
+html,body{
+  height:100%;font-family:'DM Sans',sans-serif;
+  background:var(--fond);color:var(--texte);font-size:15px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  max-width:480px;margin:0 auto;padding-bottom:80px;overflow-x:hidden;
+}
+
+/* HEADER */
+.header{
+  background:linear-gradient(135deg,#6a2fa0,#9b6fc4 60%,#c9a8e8);
+  color:#fff;padding:18px 20px 16px;
+  display:flex;align-items:center;gap:12px;
+}
+.header a{color:#fff;text-decoration:none;font-size:22px;}
+.header-titre{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;flex:1;}
+.header-titre span{font-size:13px;font-weight:400;opacity:.75;display:block;}
+.header-btn{
+  background:rgba(255,255,255,.2);border:none;border-radius:50%;
+  width:36px;height:36px;color:#fff;font-size:20px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;flex-shrink:0;
+}
+
+/* RECHERCHE */
+.search-bar{
+  padding:10px 12px;background:var(--blanc);
+  border-bottom:1px solid var(--mauve-pale);
+  position:sticky;top:0;z-index:50;
+}
+.search-input{
+  width:100%;padding:9px 14px 9px 38px;border-radius:24px;
+  border:1.5px solid var(--mauve-mid);font-size:14px;
+  font-family:'DM Sans',sans-serif;color:var(--texte);
+  background:var(--gris-pale);outline:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b5d7a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:12px center;
+  transition:border-color .15s;
+}
+.search-input:focus{border-color:var(--mauve);background-color:var(--blanc);}
+
+/* ALPHABET */
+.alpha-barre{
+  display:flex;flex-wrap:wrap;gap:4px;
+  padding:8px 12px;
+}
+.alpha-btn{
+  width:28px;height:28px;border-radius:8px;border:none;
+  background:var(--blanc);color:var(--mauve-f);
+  font-size:12px;font-weight:700;cursor:pointer;
+  transition:all .15s;display:flex;align-items:center;justify-content:center;
+}
+.alpha-btn.actif{background:var(--mauve);color:#fff;}
+.alpha-btn.vide{color:var(--mauve-mid);cursor:default;}
+
+/* LISTE CONTACTS */
+.contacts-liste{padding:0 12px;}
+
+.lettre-header{
+  font-size:13px;font-weight:700;color:var(--mauve-f);
+  padding:10px 0 4px;border-bottom:2px solid var(--mauve-pale);
+  margin-bottom:4px;letter-spacing:.5px;
+}
+
+.contact-carte{
+  display:flex;align-items:center;gap:12px;
+  padding:10px 12px;background:var(--blanc);
+  border-radius:var(--radius);box-shadow:var(--shadow);
+  margin-bottom:8px;cursor:pointer;
+  transition:transform .12s;
+}
+.contact-carte:active{transform:scale(.99);}
+
+.contact-avatar{
+  width:44px;height:44px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;font-weight:700;color:#fff;flex-shrink:0;
+  font-family:'Playfair Display',serif;
+}
+
+.contact-info{flex:1;min-width:0;}
+.contact-nom{font-size:15px;font-weight:700;color:var(--texte);}
+.contact-tel{font-size:13px;color:var(--gris);margin-top:1px;}
+.contact-anniv{
+  font-size:11px;color:var(--or);font-weight:600;margin-top:2px;
+}
+.contact-anniv.auj{
+  color:var(--vert);background:var(--vert-pale);
+  padding:1px 6px;border-radius:8px;display:inline-block;
+}
+
+.contact-actions{display:flex;gap:6px;flex-shrink:0;}
+.action-btn{
+  width:36px;height:36px;border-radius:50%;border:none;
+  display:flex;align-items:center;justify-content:center;
+  font-size:17px;cursor:pointer;transition:all .15s;
+  -webkit-tap-highlight-color:transparent;
+}
+.action-btn.tel{background:#e8f4e8;color:#2e7d52;}
+.action-btn.wa{background:#e8f4e8;color:#25d366;}
+.action-btn.edit{background:var(--mauve-pale);color:var(--mauve-f);}
+.action-btn.del{background:var(--rouge-pale);color:var(--rouge);}
+.action-btn:active{opacity:.7;}
+
+/* VIDE */
+.vide{text-align:center;padding:40px 20px;color:var(--gris);}
+.vide-emoji{font-size:48px;display:block;margin-bottom:12px;}
+.vide-txt{font-size:14px;font-style:italic;}
+
+/* MODAL */
+#modal-overlay{
+  display:none;position:fixed;inset:0;
+  background:rgba(42,26,62,.55);z-index:200;
+  align-items:flex-end;justify-content:center;
+  backdrop-filter:blur(3px);
+}
+.modal{
+  background:var(--blanc);border-radius:20px 20px 0 0;
+  width:100%;max-width:480px;padding:20px 20px 36px;
+  max-height:90vh;overflow-y:auto;
+  animation:slideUp .25s ease;
+}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
+.modal-hdr-titre{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;}
+.modal-close{
+  background:var(--gris-pale);border:none;border-radius:50%;
+  width:32px;height:32px;font-size:18px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;color:var(--gris);
+}
+.form-row{margin-bottom:14px;}
+.form-label{
+  display:block;font-size:12px;font-weight:600;color:var(--gris);
+  margin-bottom:5px;text-transform:uppercase;letter-spacing:.4px;
+}
+.form-input{
+  width:100%;padding:10px 12px;border-radius:10px;
+  border:1.5px solid var(--mauve-mid);font-size:14px;
+  font-family:'DM Sans',sans-serif;color:var(--texte);
+  background:var(--blanc);outline:none;transition:border-color .15s;
+}
+.form-input:focus{border-color:var(--mauve);}
+.form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.btn-sauver{
+  width:100%;padding:14px;margin-top:8px;
+  background:linear-gradient(135deg,var(--mauve-f),var(--mauve));
+  border:none;border-radius:12px;color:#fff;
+  font-size:15px;font-weight:700;cursor:pointer;
+  font-family:'DM Sans',sans-serif;transition:opacity .15s;
+}
+.btn-sauver:active{opacity:.85;}
+
+/* UNDO */
+#undo-bar{
+  display:none;position:fixed;bottom:88px;left:50%;
+  transform:translateX(-50%);width:calc(100% - 32px);max-width:448px;
+  background:#2a1a3e;color:#fff;border-radius:12px;
+  padding:12px 16px;z-index:300;
+  align-items:center;justify-content:space-between;
+  box-shadow:0 4px 20px rgba(0,0,0,.25);
+}
+#undo-bar span{font-size:13px;}
+#undo-bar button{
+  background:var(--mauve-pale);border:none;border-radius:8px;
+  padding:6px 12px;font-size:13px;font-weight:700;color:var(--mauve-f);cursor:pointer;
+}
+
+/* NAV BAS */
+.nav-bas{
+  position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+  width:100%;max-width:480px;background:var(--blanc);
+  border-top:1px solid #e8e0f5;display:flex;
+  justify-content:space-around;padding:8px 0 12px;
+  z-index:100;box-shadow:0 -2px 16px rgba(120,80,180,.07);
+}
+.nav-item{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  text-decoration:none;color:var(--gris);font-size:10px;font-weight:500;
+  padding:4px 8px;border-radius:10px;
+  transition:color .2s,background .2s;-webkit-tap-highlight-color:transparent;
+}
+.nav-item.actif,.nav-item:active{color:var(--mauve-f);background:var(--mauve-pale);}
+.nav-item svg{width:22px;height:22px;stroke-width:1.7;}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <a href="index.html">←</a>
+  <div class="header-titre">Contacts<span>Céline & Yves</span></div>
+  <button class="header-btn" onclick="ouvrirFormulaire()" title="Nouveau contact">+</button>
+</header>
+
+<!-- RECHERCHE -->
+<div class="search-bar">
+  <input class="search-input" type="text" id="search-inp"
+    placeholder="Rechercher un contact…"
+    oninput="renderContacts()">
+</div>
+
+<!-- ALPHABET -->
+<div class="alpha-barre" id="alpha-barre"></div>
+
+<!-- LISTE -->
+<div class="contacts-liste" id="contacts-liste">
+  <div class="vide"><span class="vide-emoji">👥</span><span class="vide-txt">Chargement…</span></div>
+</div>
+
+<!-- UNDO -->
+<div id="undo-bar">
+  <span>Contact supprimé</span>
+  <button onclick="annulerSuppr()">↩ Annuler</button>
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay" onclick="if(event.target===this)fermerModal()">
+  <div class="modal">
+    <div class="modal-hdr">
+      <span class="modal-hdr-titre" id="form-titre">Nouveau contact</span>
+      <button class="modal-close" onclick="fermerModal()">✕</button>
+    </div>
+
+    <!-- Prénom + Nom -->
+    <div class="form-row-2">
+      <div>
+        <label class="form-label">Prénom *</label>
+        <input id="c-prenom" class="form-input" type="text" placeholder="Prénom">
+      </div>
+      <div>
+        <label class="form-label">Nom</label>
+        <input id="c-nom" class="form-input" type="text" placeholder="Nom">
+      </div>
+    </div>
+
+    <!-- Téléphone -->
+    <div class="form-row">
+      <label class="form-label">Téléphone</label>
+      <input id="c-tel" class="form-input" type="tel" placeholder="Ex : 06 12 34 56 78">
+    </div>
+
+    <!-- Date de naissance -->
+    <div class="form-row">
+      <label class="form-label">Date de naissance</label>
+      <input id="c-naissance" class="form-input" type="date">
+    </div>
+
+    <!-- Note -->
+    <div class="form-row">
+      <label class="form-label">Note</label>
+      <input id="c-note" class="form-input" type="text" placeholder="Ex : Médecin, Voisin…">
+    </div>
+
+    <button class="btn-sauver" onclick="sauvegarderContact()">💾 Enregistrer</button>
+  </div>
+</div>
+
+<!-- NAV BAS -->
+<nav class="nav-bas">
+  <a href="index.html" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M9 21V12h6v9" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>Accueil
+  </a>
+  <a href="agenda.html" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <rect x="3" y="4" width="18" height="18" rx="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M16 2v4M8 2v4M3 10h18" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>Agenda
+  </a>
+  <a href="depenses.html" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" stroke-linecap="round"/>
+      <path d="M12 6v2m0 8v2M9 9.5h4.5a1.5 1.5 0 110 3h-3a1.5 1.5 0 000 3H15" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>Dépenses
+  </a>
+  <a href="notes.html" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>Notes
+  </a>
+  <a href="contacts.html" class="nav-item actif">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="9" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>Contacts
+  </a>
+</nav>
+
+<script>
+/* ── Firebase ───────────────────────────────── */
+firebase.initializeApp({
+  apiKey: "AIzaSyB1cKDJSyHoUcq07yL8k7t_q3WNZ4ZaBJw",
+  authDomain: "celine-yves.firebaseapp.com",
+  databaseURL: "https://celine-yves-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "celine-yves",
+  storageBucket: "celine-yves.firebasestorage.app",
+  messagingSenderId: "1024885005035",
+  appId: "1:1024885005035:web:fd92a0a8fc07eb78a17cae"
+});
+var db = firebase.database();
+
+/* ── État ──────────────────────────────────── */
+var allContacts = {};
+var editKey     = null;
+var lastDel     = null;
+var lettreActive = '';
+
+/* ── Couleurs avatars ──────────────────────── */
+var COULEURS = [
+  '#9b6fc4','#6f9bc4','#c46f9b','#6fc49b',
+  '#c4a46f','#c46f6f','#6fc4c4','#a46fc4'
+];
+function couleurAvatar(nom) {
+  var code = 0;
+  for (var i = 0; i < nom.length; i++) code += nom.charCodeAt(i);
+  return COULEURS[code % COULEURS.length];
+}
+
+/* ── Listener Firebase ─────────────────────── */
+db.ref("contacts").on("value", function(s) {
+  allContacts = s.val() || {};
+  buildAlpha();
+  renderContacts();
+});
+
+/* ── Barre alphabétique ────────────────────── */
+function buildAlpha() {
+  var lettres = new Set();
+  Object.values(allContacts).forEach(function(c) {
+    if (!c.supprime && c.prenom) {
+      lettres.add(c.prenom[0].toUpperCase());
+    }
+  });
+  var toutes = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  document.getElementById('alpha-barre').innerHTML =
+    '<button class="alpha-btn' + (!lettreActive?' actif':'') + '" onclick="setLettre(\'\')">Tous</button>' +
+    toutes.map(function(l) {
+      var present = lettres.has(l);
+      return '<button class="alpha-btn' +
+        (lettreActive===l?' actif':'') +
+        (present?'':' vide') + '"' +
+        (present?' onclick="setLettre(\''+l+'\')"':'') +
+        '>'+l+'</button>';
+    }).join('');
+}
+
+function setLettre(l) {
+  lettreActive = l;
+  buildAlpha();
+  renderContacts();
+}
+
+/* ── Anniversaire ──────────────────────────── */
+function infoAnniv(dateNaissance) {
+  if (!dateNaissance) return null;
+  var today = new Date();
+  var mm = String(today.getMonth()+1).padStart(2,'0');
+  var dd = String(today.getDate()).padStart(2,'0');
+  var todayMMDD = mm+'-'+dd;
+  var dnMMDD = dateNaissance.slice(5); // MM-DD
+  var age = today.getFullYear() - parseInt(dateNaissance.slice(0,4));
+  var moisNoms = ['jan','fév','mar','avr','mai','jun','jul','aoû','sep','oct','nov','déc'];
+  var parts = dateNaissance.split('-');
+  var label = parseInt(parts[2])+' '+moisNoms[parseInt(parts[1])-1];
+  return { label: label, age: age, aujourdhui: dnMMDD === todayMMDD };
+}
+
+/* ── Rendu liste ───────────────────────────── */
+function renderContacts() {
+  var q = (document.getElementById('search-inp').value || '').toLowerCase().trim();
+  var contacts = Object.entries(allContacts)
+    .filter(function(e) {
+      var c = e[1];
+      if (c.supprime) return false;
+      if (lettreActive && (!c.prenom || c.prenom[0].toUpperCase() !== lettreActive)) return false;
+      if (q) {
+        var full = ((c.prenom||'')+' '+(c.nom||'')+' '+(c.tel||'')).toLowerCase();
+        if (full.indexOf(q) === -1) return false;
+      }
+      return true;
+    })
+    .sort(function(a, b) {
+      var na = ((a[1].prenom||'')+(a[1].nom||'')).toLowerCase();
+      var nb = ((b[1].prenom||'')+(b[1].nom||'')).toLowerCase();
+      return na.localeCompare(nb, 'fr');
+    });
+
+  var el = document.getElementById('contacts-liste');
+  if (contacts.length === 0) {
+    el.innerHTML = '<div class="vide"><span class="vide-emoji">👥</span>' +
+      '<span class="vide-txt">' + (q?'Aucun résultat pour "'+q+'"':'Aucun contact') + '</span></div>';
+    return;
+  }
+
+  var html = '';
+  var lastL = '';
+  contacts.forEach(function(e) {
+    var key = e[0], c = e[1];
+    var initiale = (c.prenom||'?')[0].toUpperCase();
+    if (!q && initiale !== lastL) {
+      html += '<div class="lettre-header" id="section-'+initiale+'">'+initiale+'</div>';
+      lastL = initiale;
+    }
+    var nom = (c.prenom||'') + (c.nom?' '+c.nom:'');
+    var couleur = couleurAvatar(nom||'?');
+    var anniv = infoAnniv(c.dateNaissance);
+
+    // Boutons téléphone & WhatsApp
+    var btnTel = c.tel ?
+      '<a href="tel:'+c.tel.replace(/\s/g,'')+'" class="action-btn tel" title="Appeler" onclick="event.stopPropagation()">📞</a>' : '';
+    var btnWA = c.tel ?
+      '<a href="https://wa.me/'+waNum(c.tel)+'" class="action-btn wa" title="WhatsApp" target="_blank" onclick="event.stopPropagation()">💬</a>' : '';
+
+    html += '<div class="contact-carte">' +
+      '<div class="contact-avatar" style="background:'+couleur+'">'+initiale+'</div>' +
+      '<div class="contact-info">' +
+        '<div class="contact-nom">'+escHtml(nom)+'</div>' +
+        (c.tel ? '<div class="contact-tel">'+escHtml(c.tel)+'</div>' : '') +
+        (c.note ? '<div class="contact-tel" style="color:var(--mauve)">'+escHtml(c.note)+'</div>' : '') +
+        (anniv ? '<div class="contact-anniv'+(anniv.aujourdhui?' auj':'')+'">'+
+          (anniv.aujourdhui?'🎂 Aujourd\'hui ! ':'🎂 ')+anniv.label+' ('+anniv.age+' ans)'+'</div>' : '') +
+      '</div>' +
+      '<div class="contact-actions">' +
+        btnTel + btnWA +
+        '<button class="action-btn edit" onclick="ouvrirEdition(\''+key+'\')" title="Modifier">✏️</button>' +
+        '<button class="action-btn del" onclick="supprimerContact(\''+key+'\')" title="Supprimer">🗑️</button>' +
+      '</div>' +
+    '</div>';
+  });
+  el.innerHTML = html;
+}
+
+function waNum(tel) {
+  var n = tel.replace(/\D/g,'');
+  if (n.startsWith('0')) n = '33'+n.slice(1);
+  return n;
+}
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ── Formulaire ────────────────────────────── */
+function ouvrirFormulaire() {
+  editKey = null;
+  document.getElementById('form-titre').textContent = 'Nouveau contact';
+  document.getElementById('c-prenom').value   = '';
+  document.getElementById('c-nom').value      = '';
+  document.getElementById('c-tel').value      = '';
+  document.getElementById('c-naissance').value= '';
+  document.getElementById('c-note').value     = '';
+  document.getElementById('modal-overlay').style.display = 'flex';
+  setTimeout(function(){ document.getElementById('c-prenom').focus(); }, 200);
+}
+
+function ouvrirEdition(key) {
+  var c = allContacts[key];
+  if (!c) return;
+  editKey = key;
+  document.getElementById('form-titre').textContent = 'Modifier le contact';
+  document.getElementById('c-prenom').value    = c.prenom       || '';
+  document.getElementById('c-nom').value       = c.nom          || '';
+  document.getElementById('c-tel').value       = c.tel          || '';
+  document.getElementById('c-naissance').value = c.dateNaissance|| '';
+  document.getElementById('c-note').value      = c.note         || '';
+  document.getElementById('modal-overlay').style.display = 'flex';
+}
+
+function fermerModal() {
+  document.getElementById('modal-overlay').style.display = 'none';
+  editKey = null;
+}
+
+function sauvegarderContact() {
+  var prenom = document.getElementById('c-prenom').value.trim();
+  if (!prenom) { alert('Le prénom est obligatoire'); return; }
+  var data = {
+    prenom:        prenom,
+    nom:           document.getElementById('c-nom').value.trim() || null,
+    tel:           document.getElementById('c-tel').value.trim() || null,
+    dateNaissance: document.getElementById('c-naissance').value || null,
+    note:          document.getElementById('c-note').value.trim() || null,
+    modifiedAt:    new Date().toISOString(),
+    supprime:      false
+  };
+  if (editKey) {
+    allContacts[editKey] = Object.assign(allContacts[editKey]||{}, data);
+    db.ref("contacts/"+editKey).update(data);
+  } else {
+    data.createdAt = new Date().toISOString();
+    var ref = db.ref("contacts").push();
+    allContacts[ref.key] = data;
+    ref.set(data);
+  }
+  fermerModal();
+  buildAlpha();
+  renderContacts();
+}
+
+/* ── Suppression + undo ────────────────────── */
+function supprimerContact(key) {
+  var c = allContacts[key];
+  if (!c) return;
+  lastDel = { key: key, data: Object.assign({}, c) };
+  allContacts[key].supprime = true;
+  buildAlpha();
+  renderContacts();
+  db.ref("contacts/"+key).update({ supprime: true, suppressAt: new Date().toISOString() });
+  var bar = document.getElementById('undo-bar');
+  bar.style.display = 'flex';
+  clearTimeout(window._ut);
+  window._ut = setTimeout(function(){ bar.style.display='none'; lastDel=null; }, 6000);
+}
+
+function annulerSuppr() {
+  if (!lastDel) return;
+  allContacts[lastDel.key].supprime = false;
+  buildAlpha();
+  renderContacts();
+  db.ref("contacts/"+lastDel.key).update({ supprime: false, suppressAt: null });
+  document.getElementById('undo-bar').style.display = 'none';
+  lastDel = null;
+}
+</script>
+</body>
+</html>
