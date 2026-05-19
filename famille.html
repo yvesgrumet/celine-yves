@@ -325,6 +325,16 @@ firebase.initializeApp({
 });
 var db = firebase.database();
 
+/* Feedback anti double-clic */
+function feedbackSauvegarde(callback) {
+  var btn = document.querySelector('.btn-sauver');
+  if (btn && btn.disabled) return false;
+  if (btn) { btn.disabled=true; btn.innerHTML='✅ Enregistré !'; btn.style.background='#2e7d52'; }
+  setTimeout(function(){ callback(); }, 900);
+  return true;
+}
+
+
 /* ── État ──────────────────────────────────── */
 var famille  = {};
 var editKey  = null;
@@ -513,6 +523,8 @@ function fermerModal() {
 }
 
 function sauvegarderFiche() {
+  var btn=document.querySelector(".btn-sauver");
+  if(btn&&btn.disabled)return;
   var prenom = document.getElementById('f-prenom').value.trim();
   if (!prenom) { alert('Le prénom est obligatoire'); return; }
 
@@ -545,8 +557,7 @@ function sauvegarderFiche() {
     famille[key]   = data;
     db.ref("famille/"+key).set(data);
   }
-  fermerModal();
-  render();
+  feedbackSauvegarde(function(){fermerModal();render();});
 }
 
 /* ── Suppression + undo ────────────────────── */

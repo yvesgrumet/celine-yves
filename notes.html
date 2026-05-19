@@ -399,6 +399,16 @@ firebase.initializeApp({
 });
 var db = firebase.database();
 
+/* Feedback anti double-clic */
+function feedbackSauvegarde(callback) {
+  var btn = document.querySelector('.btn-sauver');
+  if (btn && btn.disabled) return false;
+  if (btn) { btn.disabled=true; btn.innerHTML='✅ Enregistré !'; btn.style.background='#2e7d52'; }
+  setTimeout(function(){ callback(); }, 900);
+  return true;
+}
+
+
 /* ── État ──────────────────────────────────── */
 var allNotes = {};
 var editKey  = null;
@@ -548,6 +558,8 @@ function majToggleImp(imp) {
 }
 
 function sauvegarderNote() {
+  var btn=document.querySelector(".btn-sauver");
+  if(btn&&btn.disabled)return;
   var titre   = document.getElementById('note-titre').value.trim();
   var contenu = document.getElementById('note-contenu').value.trim();
   if (!titre)   { alert('Le titre est obligatoire'); return; }
@@ -570,8 +582,7 @@ function sauvegarderNote() {
     allNotes[ref.key] = data;
     ref.set(data);
   }
-  fermerModal();
-  renderNotes();
+  feedbackSauvegarde(function(){fermerModal();renderNotes();});
 }
 
 /* ── Suppression + undo ────────────────────── */

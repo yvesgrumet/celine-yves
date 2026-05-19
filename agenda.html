@@ -79,7 +79,7 @@ function getFete(dateStr) {
    Saisir les semaines où Valentin est chez Cédric
 ══════════════════════════════════════════════ */
 const SEMAINES_VALENTIN = [
-  // Semaines paires = Valentin chez Cédric (à adapter avec les vraies semaines)
+  // Semaines paires = Valentin chez Céline (à adapter avec les vraies semaines)
   "2025-W02","2025-W04","2025-W06","2025-W08","2025-W10","2025-W12",
   "2025-W14","2025-W16","2025-W18","2025-W20","2025-W22","2025-W24",
   "2025-W26","2025-W28","2025-W30","2025-W32","2025-W34","2025-W36",
@@ -302,7 +302,7 @@ function renderDayDetail(dateStr) {
 
   let headerExtra = "";
   if (fete)       headerExtra += `<span class="jour-fete">✨ ${fete}</span>`;
-  if (isValentin) headerExtra += `<span class="jour-valentin">💚 Semaine Valentin chez Cédric</span>`;
+  if (isValentin) headerExtra += `<span class="jour-valentin">💚 Semaine Valentin chez Céline</span>`;
   annivs.forEach(a => headerExtra += `<span class="jour-anniv">🎂 ${a}</span>`);
 
   document.getElementById("jour-titre").innerHTML =
@@ -605,6 +605,18 @@ window.fermerModal = function() {
   editKey = null;
 };
 
+// Feedback visuel après sauvegarde
+function feedbackSauvegarde(btnId, callbackFermer) {
+  const btn = document.getElementById(btnId) ||
+    document.querySelector(".btn-sauver");
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = "✅ Enregistré !";
+    btn.style.background = "#2e7d52";
+  }
+  setTimeout(() => { callbackFermer(); }, 900);
+}
+
 window.majFormCat = function() {
   const cat      = document.getElementById("ev-cat").value;
   const noteRow  = document.getElementById("note-row");
@@ -826,6 +838,8 @@ window.retirerEcolePeriode = function(i) {
   renderEcolePanel();
 };
 window.sauvegarderEv = async function() {
+  const btn = document.querySelector("#modal-overlay .btn-sauver");
+  if (btn && btn.disabled) return; // anti double-clic
   const titre = document.getElementById("ev-titre").value.trim();
   const cat   = document.getElementById("ev-cat").value;
   const qui   = [...selectedQui].join(" & ") || "Céline & Yves";
@@ -960,10 +974,12 @@ window.sauvegarderEv = async function() {
     else         await push(ref(db,"evenements"), data);
   }
 
-  fermerModal();
-  renderCalendar();
-  renderMonthList();
-  if (selectedDay) renderDayDetail(selectedDay);
+  feedbackSauvegarde(null, () => {
+    fermerModal();
+    renderCalendar();
+    renderMonthList();
+    if (selectedDay) renderDayDetail(selectedDay);
+  });
 };
 
 /* ══════════════════════════════════════════════
@@ -1555,7 +1571,7 @@ html,body {
 <!-- LÉGENDE VALENTIN -->
 <div class="legende-valentin">
   <div class="legende-val-carre"></div>
-  <span>Semaine Valentin chez Cédric</span>
+  <span>Semaine Valentin chez Céline</span>
 </div>
 
 <!-- PANNEAU DÉTAIL JOUR -->
