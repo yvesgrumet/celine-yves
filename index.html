@@ -118,8 +118,11 @@
 
     const fete = feteJour();
     const el = document.getElementById("fete-txt");
-    if (fete) { el.textContent = `✨ ${fete}`; el.style.display="block"; }
+    if (fete) { el.innerHTML = `✨ <strong>${fete}</strong>`; el.style.display="inline"; }
     else       { el.style.display="none"; }
+    // Afficher date + fête sur la même ligne
+    const dateTxt = document.getElementById("date-txt");
+    dateTxt.textContent = `${j} ${d} ${m} ${a}`;
   }
   setInterval(majDateHeure, 1000);
   majDateHeure();
@@ -216,7 +219,12 @@
         const d = new Date(ev.date+"T12:00:00");
         const label = `${joursF[d.getDay()]} ${d.getDate()}`;
         const h = ev.heure ? ` ${ev.heure}` : "";
-        return `<div class="prochain-item"><span class="prochain-date">${label}</span><span class="prochain-titre">${ev.titre}${h}</span></div>`;
+        const qui = ev.qui ? `<span class="prochain-qui">${ev.qui}</span>` : "";
+        return `<div class="prochain-item">
+          <span class="prochain-date">${label}</span>
+          <span class="prochain-titre">${ev.titre}${h}</span>
+          ${qui}
+        </div>`;
       }).join("");
     });
   }
@@ -663,6 +671,12 @@ body {
   flex: 1;
 }
 
+.prochain-qui {
+  font-size: 11px; color: var(--mauve-f);
+  background: var(--mauve-pale); padding: 1px 7px;
+  border-radius: 8px; white-space: nowrap; flex-shrink: 0;
+}
+
 /* ═══════════════════════════
    NAV BAS
 ═══════════════════════════ */
@@ -757,8 +771,8 @@ body {
     <div class="date-ligne">
       <span id="heure-txt">--:--</span>
       <span id="date-txt">—</span>
+      <span id="fete-txt" style="display:none;font-size:12px;color:#f0d080;margin-left:6px"></span>
     </div>
-    <span id="fete-txt"></span>
     <div class="meteo-deux">
       <div class="meteo-bloc" id="meteo-pdv">
         <span class="meteo-ville">Pont-de-Veyle</span>

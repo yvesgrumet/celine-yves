@@ -79,15 +79,17 @@ function getFete(dateStr) {
    Saisir les semaines où Valentin est chez Cédric
 ══════════════════════════════════════════════ */
 const SEMAINES_VALENTIN = [
-  // Format: "YYYY-Wnn" (numéro de semaine ISO)
-  // Exemples — à adapter avec les vraies dates
+  // Semaines paires = Valentin chez Cédric (à adapter avec les vraies semaines)
   "2025-W02","2025-W04","2025-W06","2025-W08","2025-W10","2025-W12",
   "2025-W14","2025-W16","2025-W18","2025-W20","2025-W22","2025-W24",
   "2025-W26","2025-W28","2025-W30","2025-W32","2025-W34","2025-W36",
   "2025-W38","2025-W40","2025-W42","2025-W44","2025-W46","2025-W48",
   "2025-W50","2025-W52",
   "2026-W02","2026-W04","2026-W06","2026-W08","2026-W10","2026-W12",
-  "2026-W14","2026-W16","2026-W18","2026-W20"
+  "2026-W14","2026-W16","2026-W18","2026-W20","2026-W22","2026-W24",
+  "2026-W26","2026-W28","2026-W30","2026-W32","2026-W34","2026-W36",
+  "2026-W38","2026-W40","2026-W42","2026-W44","2026-W46","2026-W48",
+  "2026-W50","2026-W52"
 ];
 
 function getISOWeek(date) {
@@ -109,6 +111,7 @@ function isValentinWeek(date) {
 let viewDate    = new Date();
 let selectedDay = null;
 let allEvents   = {};
+let allContacts = {};
 let editKey     = null;
 let lastDeleted = null;
 let selectedQui = new Set(["Céline","Yves"]);
@@ -117,13 +120,30 @@ let planFin     = { annee:0, semaine:0 };
 let planTravailSaufSems = new Set();
 
 /* ══════════════════════════════════════════════
-   FIREBASE LISTENER
+   FIREBASE LISTENERS
 ══════════════════════════════════════════════ */
 onValue(ref(db,"evenements"), snap => {
   allEvents = snap.val() || {};
   renderCalendar();
   if (selectedDay) renderDayDetail(selectedDay);
   renderMonthList();
+});
+
+onValue(ref(db,"contacts"), snap => {
+  allContacts = snap.val() || {};
+  renderCalendar(); // Recalculer les points (anniversaires)
+  if (selectedDay) renderDayDetail(selectedDay);
+});
+
+onValue(ref(db,"famille"), snap => {
+  const fam = snap.val() || {};
+  // Fusionner les anniversaires famille dans allContacts pour réutilisation
+  Object.entries(fam).forEach(([k,v]) => {
+    if (v && v.dateNaissance && !v.supprime) {
+      allContacts["_fam_"+k] = { prenom: v.prenom||k, nom: v.nom||"", dateNaissance: v.dateNaissance };
+    }
+  });
+  if (selectedDay) renderDayDetail(selectedDay);
 });
 
 /* ══════════════════════════════════════════════
@@ -179,6 +199,10 @@ function renderCalendar() {
       const dateObj    = new Date(y, m, d);
       const isValentin = isValentinWeek(dateObj);
       const nbEv       = evParJour[dateStr] || 0;
+      // Vérifier anniversaire ce jour
+      const hasAnniv = Object.values(allContacts).some(c =>
+        !c.supprime && c.dateNaissance && c.dateNaissance.slice(5) === dateStr.slice(5)
+      );
 
       let cls = "cal-cell";
       if (isToday)    cls += " today";
@@ -187,6 +211,7 @@ function renderCalendar() {
 
       html += `<div class="${cls}" data-date="${dateStr}" onclick="selectDay('${dateStr}')">
         <span class="cal-num">${d}</span>
+        ${hasAnniv ? `<span class="cal-anniv-dot" title="Anniversaire">🎂</span>` : ""}
         ${nbEv > 0 ? `<span class="cal-dot">${nbEv > 1 ? nbEv : ""}</span>` : ""}
       </div>`;
     }
@@ -264,19 +289,19 @@ function renderDayDetail(dateStr) {
   const d = new Date(dateStr + "T12:00:00");
   const fete = getFete(dateStr);
   const isValentin = isValentinWeek(d);
+  const mmdd = dateStr.slice(5); // MM-DD
 
-  // Anniversaires du jour
+  // Anniversaires depuis allContacts (déjà chargé, inclut famille)
   const annivs = [];
-  onValue(ref(db,"contacts"), snap => {
-    const contacts = snap.val() || {};
-    Object.values(contacts).forEach(c => {
-      if (c.dateNaissance && c.dateNaissance.slice(5) === dateStr.slice(5))
-        annivs.push((c.prenom||"") + " " + (c.nom||""));
-    });
-  }, {onlyOnce:true});
+  Object.values(allContacts).forEach(c => {
+    if (!c.supprime && c.dateNaissance && c.dateNaissance.slice(5) === mmdd) {
+      const age = d.getFullYear() - parseInt(c.dateNaissance.slice(0,4));
+      annivs.push(`${c.prenom||""} ${c.nom||""} (${age} ans)`);
+    }
+  });
 
   let headerExtra = "";
-  if (fete)     headerExtra += `<span class="jour-fete">✨ ${fete}</span>`;
+  if (fete)       headerExtra += `<span class="jour-fete">✨ ${fete}</span>`;
   if (isValentin) headerExtra += `<span class="jour-valentin">💚 Semaine Valentin chez Cédric</span>`;
   annivs.forEach(a => headerExtra += `<span class="jour-anniv">🎂 ${a}</span>`);
 
@@ -470,6 +495,31 @@ function pickerHeure(jKey, slot, label) {
   </div>`;
 }
 
+/* Presets horaires travail */
+const PRESETS_TRAVAIL = [
+  { label:"J1", deb:{h:6,m:45},  fin:{h:16,m:45} },
+  { label:"J2", deb:{h:11,m:15}, fin:{h:21,m:15} },
+  { label:"N",  deb:{h:21,m:0},  fin:{h:7,m:0}   }
+];
+
+window.appliquerPreset = function(jKey, idx) {
+  const p = PRESETS_TRAVAIL[idx];
+  planHeures[jKey].deb = { ...p.deb };
+  planHeures[jKey].fin = { ...p.fin };
+  // Mettre à jour les spinners
+  document.getElementById(`ph-deb-h-${jKey}`).textContent = String(p.deb.h).padStart(2,"0");
+  document.getElementById(`ph-deb-m-${jKey}`).textContent = String(p.deb.m).padStart(2,"0");
+  document.getElementById(`ph-fin-h-${jKey}`).textContent = String(p.fin.h).padStart(2,"0");
+  document.getElementById(`ph-fin-m-${jKey}`).textContent = String(p.fin.m).padStart(2,"0");
+  document.getElementById(`ph-deb-val-${jKey}`).value = hm(p.deb);
+  document.getElementById(`ph-fin-val-${jKey}`).value = hm(p.fin);
+  // Marquer le bouton actif
+  ['J1','J2','N'].forEach((l,i) => {
+    const btn = document.getElementById(`preset-${l}-${jKey}`);
+    if (btn) btn.classList.toggle('actif', i === idx);
+  });
+};
+
 function renderPlanningTravail() {
   const sa = semaineActuelle();
   if (!planDeb.annee) { planDeb = { ...sa }; }
@@ -490,6 +540,10 @@ function renderPlanningTravail() {
   const conteneur = document.getElementById("planning-jours");
   conteneur.innerHTML = JOURS_PLANNING.map(j => {
     const checked = etatCoche[j.key];
+    const presetsHtml = PRESETS_TRAVAIL.map((p,i) =>
+      `<button type="button" class="preset-btn" id="preset-${p.label}-${j.key}"
+        onclick="appliquerPreset('${j.key}',${i})">${p.label}</button>`
+    ).join("");
     return `
     <div class="plan-ligne">
       <label class="plan-case">
@@ -497,6 +551,7 @@ function renderPlanningTravail() {
         <span class="plan-jour-label">${j.label}</span>
       </label>
       <div class="plan-heures" id="plan-heures-${j.key}" style="display:${checked?'flex':'none'}">
+        <div class="preset-btns">${presetsHtml}</div>
         ${pickerHeure(j.key,"deb","de")}
         ${pickerHeure(j.key,"fin","à")}
       </div>
@@ -1066,6 +1121,7 @@ html,body {
 }
 .cal-cell.selected .cal-dot { background:#fff; color:var(--mauve); }
 .cal-cell.valentin .cal-dot { background:var(--vert-val); }
+.cal-anniv-dot { font-size:8px; line-height:1; margin-top:1px; }
 
 /* légende Valentin */
 .legende-valentin {
@@ -1324,7 +1380,17 @@ html,body {
 }
 .plan-de { font-size:12px; color:var(--gris); font-weight:500; }
 
-/* ── Picker heure custom ───────────────────── */
+/* Presets J1/J2/N */
+.preset-btns { display:flex; gap:4px; }
+.preset-btn {
+  padding:4px 8px; border-radius:8px; border:1.5px solid var(--mauve-mid);
+  background:var(--blanc); color:var(--mauve-f); font-size:12px;
+  font-weight:700; cursor:pointer; transition:all .15s;
+}
+.preset-btn.actif {
+  background:var(--mauve); border-color:var(--mauve); color:#fff;
+}
+.preset-btn:active { opacity:.8; }
 .h-picker {
   display:flex; align-items:center; gap:3px;
   background:var(--blanc); border:1.5px solid var(--mauve-mid);
