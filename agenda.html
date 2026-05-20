@@ -432,7 +432,9 @@ function lundoDeSemaine(annee, semaine) {
   return lundi;
 }
 function addJours(date, n) { const d = new Date(date); d.setDate(d.getDate()+n); return d; }
-function dateToStr(d) { return d.toISOString().slice(0,10); }
+function dateToStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
 function semaineActuelle() {
   const w = getISOWeek(new Date()).split("-W");
   return { annee: parseInt(w[0]), semaine: parseInt(w[1]) };
