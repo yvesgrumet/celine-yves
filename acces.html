@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Accès — Céline & Yves</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, onValue, push, set, update, remove }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyB1cKDJSyHoUcq07yL8k7t_q3WNZ4ZaBJw",
+  authDomain: "celine-yves.firebaseapp.com",
+  databaseURL: "https://celine-yves-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "celine-yves",
+  storageBucket: "celine-yves.firebasestorage.app",
+  messagingSenderId: "1024885005035",
+  appId: "1:1024885005035:web:fd92a0a8fc07eb78a17cae"
+};
+
+const app = initializeApp(firebaseConfig);
+const db  = getDatabase(app);
+
+let personnes = {};
+
+onValue(ref(db, "acces"), snap => {
+  personnes = snap.val() || {};
+  render();
+});
+
+function render() {
+  const liste = document.getElementById("acces-liste");
+  const keys = Object.keys(personnes).sort((a, b) =>
+    (personnes[a].createdAt || "").localeCompare(personnes[b].createdAt || "")
+  );
+
+  if (keys.length === 0) {
+    liste.innerHTML = '<p class="rien">Aucune personne — ajoutez-en via le formulaire ci-dessous</p>';
+    return;
+  }
+
+  liste.innerHTML = keys.map(k => {
+    const p = personnes[k];
+    const actif = p.active !== false;
+    return `
+    <div class="fiche ${actif ? "" : "inactif"}">
+      <div class="fiche-avatar" style="background:${couleur(p.nom || k)}">${(p.nom || "?")[0].toUpperCase()}</div>
+      <div class="fiche-info">
+        <div class="fiche-nom">${escHtml(p.nom || k)}</div>
+        <div class="fiche-statut">${actif ? "✅ Accès actif" : "⛔ Accès désactivé"}</div>
+      </div>
+      <div class="fiche-btns">
+        <button class="btn-toggle ${actif ? "desact" : "act"}" onclick="toggleActif('${k}', ${actif})">
+          ${actif ? "Désactiver" : "Activer"}
+        </button>
+        <button class="btn-del" onclick="supprimerPersonne('${k}')">🗑️</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+const COULEURS = ["#9b6fc4","#3a6bbf","#c46f9b","#2e7d52","#c4a46f","#c46f6f","#6fc4c4","#c9963a"];
+function couleur(nom) {
+  let code = 0;
+  for (let i = 0; i < nom.length; i++) code += nom.charCodeAt(i);
+  return COULEURS[code % COULEURS.length];
+}
+function escHtml(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+window.ajouterPersonne = function() {
+  const inp = document.getElementById("inp-nom");
+  const nom = inp.value.trim();
+  if (!nom) { inp.focus(); return; }
+
+  const dejaPresent = Object.values(personnes).some(p =>
+    p.nom && p.nom.toLowerCase() === nom.toLowerCase()
+  );
+  if (dejaPresent) { alert(`"${nom}" est déjà dans la liste.`); return; }
+
+  push(ref(db, "acces"), {
+    nom,
+    active: true,
+    createdAt: new Date().toISOString()
+  });
+  inp.value = "";
+  inp.focus();
+};
+
+window.toggleActif = function(key, estActif) {
+  update(ref(db, `acces/${key}`), { active: !estActif });
+};
+
+window.supprimerPersonne = function(key) {
+  const p = personnes[key];
+  if (!p) return;
+  if (!confirm(`Supprimer "${p.nom}" de la liste d'accès ?`)) return;
+  remove(ref(db, `acces/${key}`));
+};
+
+document.getElementById("inp-nom").addEventListener("keydown", e => {
+  if (e.key === "Enter") { e.preventDefault(); window.ajouterPersonne(); }
+});
+</script>
+
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --mauve:#9b6fc4;--mauve-f:#6a2fa0;--mauve-pale:#f0e8f9;--mauve-mid:#d4b8ef;
+  --vert:#2e7d52;--vert-pale:#e6f4ec;
+  --rouge:#c0392b;--rouge-pale:#fde8e8;
+  --gris:#6b5d7a;--gris-pale:#f2edf8;
+  --blanc:#fff;--fond:#f7f2fc;--texte:#2a1a3e;
+  --radius:14px;--shadow:0 2px 16px rgba(120,80,180,.10);
+}
+html,body{
+  height:100%;font-family:'DM Sans',sans-serif;
+  background:var(--fond);color:var(--texte);font-size:15px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  max-width:480px;margin:0 auto;padding-bottom:90px;overflow-x:hidden;
+}
+.header{
+  background:linear-gradient(135deg,#6a2fa0,#9b6fc4 60%,#c9a8e8);
+  color:#fff;padding:18px 20px 16px;
+  display:flex;align-items:center;gap:12px;
+}
+.header a{color:#fff;text-decoration:none;font-size:22px;}
+.header-titre{font-family:'Playfair Display',serif;font-size:18px;font-weight:700;flex:1;}
+.header-titre span{font-size:13px;font-weight:400;opacity:.75;display:block;}
+
+.info-bloc{
+  margin:16px;background:linear-gradient(135deg,#f0e8f9,#e8d8f5);
+  border-left:4px solid var(--mauve);border-radius:var(--radius);
+  padding:12px 16px;font-size:13px;color:var(--mauve-f);line-height:1.6;
+}
+.info-bloc strong{display:block;margin-bottom:4px;font-size:14px;}
+
+.section{margin:0 16px 16px;background:var(--blanc);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;}
+.section-header{padding:14px 16px 10px;border-bottom:1px solid var(--mauve-pale);}
+.section-titre{font-family:'Playfair Display',serif;font-size:15px;font-weight:700;}
+.section-body{padding:12px 16px 16px;}
+
+.fiche{
+  display:flex;align-items:center;gap:12px;
+  padding:12px 0;border-bottom:1px solid #f5f2fa;
+}
+.fiche:last-child{border-bottom:none;}
+.fiche.inactif{opacity:.55;}
+.fiche-avatar{
+  width:44px;height:44px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Playfair Display',serif;font-size:18px;font-weight:700;color:#fff;
+}
+.fiche-info{flex:1;min-width:0;}
+.fiche-nom{font-size:15px;font-weight:600;color:var(--texte);}
+.fiche-statut{font-size:12px;color:var(--gris);margin-top:2px;}
+.fiche-btns{display:flex;gap:6px;flex-shrink:0;}
+.btn-toggle{
+  padding:6px 12px;border-radius:20px;border:none;cursor:pointer;
+  font-size:12px;font-weight:600;font-family:'DM Sans',sans-serif;
+}
+.btn-toggle.desact{background:var(--rouge-pale);color:var(--rouge);}
+.btn-toggle.act{background:var(--vert-pale);color:var(--vert);}
+.btn-del{
+  width:34px;height:34px;border-radius:50%;border:none;
+  background:var(--rouge-pale);color:var(--rouge);
+  font-size:15px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+}
+
+.ajout-form{display:flex;gap:8px;margin-top:4px;}
+.ajout-input{
+  flex:1;padding:10px 14px;border-radius:24px;
+  border:1.5px solid var(--mauve-mid);font-size:14px;
+  font-family:'DM Sans',sans-serif;background:var(--blanc);outline:none;
+}
+.ajout-input:focus{border-color:var(--mauve);}
+.ajout-btn{
+  padding:10px 18px;border-radius:24px;border:none;
+  background:linear-gradient(135deg,var(--mauve-f),var(--mauve));
+  color:#fff;font-size:14px;font-weight:700;cursor:pointer;
+  font-family:'DM Sans',sans-serif;white-space:nowrap;
+}
+.ajout-btn:active{opacity:.85;}
+
+.rien{font-size:13px;color:var(--gris);text-align:center;padding:20px 0;font-style:italic;}
+
+.nav-bas{
+  position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+  width:100%;max-width:480px;background:var(--blanc);
+  border-top:1px solid #e8e0f5;display:flex;
+  justify-content:space-around;padding:8px 0 12px;
+  z-index:100;box-shadow:0 -2px 16px rgba(120,80,180,.07);
+}
+.nav-item{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  text-decoration:none;color:var(--gris);font-size:9px;font-weight:500;
+  padding:4px 6px;border-radius:10px;
+  transition:color .2s,background .2s;-webkit-tap-highlight-color:transparent;
+}
+.nav-item.actif,.nav-item:active{color:var(--mauve-f);background:var(--mauve-pale);}
+.nav-item svg{width:22px;height:22px;stroke-width:1.7;}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <a href="index.html">←</a>
+  <div class="header-titre">Accès<span>Céline & Yves</span></div>
+</header>
+
+<div class="info-bloc">
+  <strong>🔐 Gestion des accès</strong>
+  Les personnes listées ici peuvent être sélectionnées pour confirmer qu'elles ont vu un nouvel événement.
+  Désactivez temporairement un accès sans supprimer la personne.
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <span class="section-titre">👥 Personnes avec accès</span>
+  </div>
+  <div class="section-body">
+    <div id="acces-liste"><p class="rien">Chargement…</p></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <span class="section-titre">➕ Ajouter une personne</span>
+  </div>
+  <div class="section-body">
+    <div class="ajout-form">
+      <input id="inp-nom" class="ajout-input" type="text" placeholder="Prénom de la personne…" autocomplete="off">
+      <button class="ajout-btn" onclick="ajouterPersonne()">Ajouter</button>
+    </div>
+  </div>
+</div>
+
+<nav class="nav-bas">
+  <a href="index.html" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 21V12h6v9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Accueil
+  </a>
+  <a href="agenda.html" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 2v4M8 2v4M3 10h18" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Agenda
+  </a>
+  <a href="depenses.html" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" stroke-linecap="round"/><path d="M12 6v2m0 8v2M9 9.5h4.5a1.5 1.5 0 110 3h-3a1.5 1.5 0 000 3H15" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Dépenses
+  </a>
+  <a href="notes.html" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Notes
+  </a>
+  <a href="contacts.html" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Contacts
+  </a>
+  <a href="acces.html" class="nav-item actif">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 11V7a5 5 0 0110 0v4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Accès
+  </a>
+</nav>
+
+</body>
+</html>

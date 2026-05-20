@@ -968,7 +968,9 @@ window.sauvegarderEv = async function() {
       ...base,
       date,
       heure: document.getElementById("ev-heure").value || null,
-      createdAt: editKey ? undefined : new Date().toISOString()
+      createdAt: editKey ? undefined : new Date().toISOString(),
+      isNew:     editKey ? undefined : true,
+      vus:       editKey ? undefined : {}
     };
     if (editKey) await update(ref(db,`evenements/${editKey}`), data);
     else         await push(ref(db,"evenements"), data);
@@ -1855,6 +1857,13 @@ html,body {
       <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
     Contacts
+  </a>
+  <a href="acces.html" class="nav-item">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+      <rect x="3" y="11" width="18" height="11" rx="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M7 11V7a5 5 0 0110 0v4" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Accès
   </a>
 </nav>
 
