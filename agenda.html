@@ -108,7 +108,7 @@ function isValentinWeek(date) {
 /* ══════════════════════════════════════════════
    ÉTAT GLOBAL
 ══════════════════════════════════════════════ */
-let viewDate    = new Date();
+let viewDate    = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 let selectedDay = null;
 let allEvents   = {};
 let allContacts = {};
@@ -159,7 +159,8 @@ function renderCalendar() {
   // Offset lun-dim : lun=0, mar=1,..., dim=6
   const startOffset = firstDayJS === 0 ? 6 : firstDayJS - 1;
   const lastDate = new Date(y, m+1, 0).getDate();
-  const today = new Date().toISOString().slice(0,10);
+  const _t = new Date();
+  const today = `${_t.getFullYear()}-${String(_t.getMonth()+1).padStart(2,"0")}-${String(_t.getDate()).padStart(2,"0")}`;
 
   const evParJour = {};
   const prefixMois = `${y}-${String(m+1).padStart(2,"0")}`;
@@ -200,7 +201,7 @@ function renderCalendar() {
 
     for (let c = 0; c < 7; c++) {
       const d = cells[r * 7 + c];
-      if (d === null) {
+      if (d == null) {
         html += `<div class="cal-cell vide"></div>`;
         continue;
       }
@@ -245,7 +246,8 @@ function renderMonthList() {
   const prefix = `${y}-${String(m+1).padStart(2,"0")}`;
 
   const CATS_LISTE_MOIS = ["rdv", "anniversaire"];
-  const today = new Date().toISOString().slice(0, 10);
+  const _td = new Date();
+  const today = `${_td.getFullYear()}-${String(_td.getMonth()+1).padStart(2,"0")}-${String(_td.getDate()).padStart(2,"0")}`;
   const evMois = Object.entries(allEvents)
     .filter(([k,v]) => !v.supprime && v.date && v.date.startsWith(prefix)
       && (v.categorie === "anniversaire" || v.date >= today)
@@ -366,13 +368,13 @@ function renderDayDetail(dateStr) {
    NAVIGATION MOIS
 ══════════════════════════════════════════════ */
 window.moisPrec = function() {
-  viewDate.setMonth(viewDate.getMonth() - 1);
+  viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1);
   renderCalendar();
   renderMonthList();
   fermerJour();
 };
 window.moisSuiv = function() {
-  viewDate.setMonth(viewDate.getMonth() + 1);
+  viewDate = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1);
   renderCalendar();
   renderMonthList();
   fermerJour();
