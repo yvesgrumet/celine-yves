@@ -162,9 +162,21 @@ function renderCalendar() {
   const today = new Date().toISOString().slice(0,10);
 
   const evParJour = {};
+  const prefixMois = `${y}-${String(m+1).padStart(2,"0")}`;
   Object.values(allEvents).forEach(ev => {
-    if (!ev.supprime && ev.date && ev.date.startsWith(`${y}-${String(m+1).padStart(2,"0")}`)) {
-      evParJour[ev.date] = (evParJour[ev.date] || 0) + 1;
+    if (!ev.supprime && ev.date) {
+      if (ev.dateFin && ev.dateFin > ev.date) {
+        // Événement multi-jours (ex: vacances) — marquer chaque jour du mois
+        let cur = new Date(ev.date + "T12:00:00");
+        const fin = new Date(ev.dateFin + "T12:00:00");
+        while (cur <= fin) {
+          const ds = cur.toISOString().slice(0,10);
+          if (ds.startsWith(prefixMois)) evParJour[ds] = (evParJour[ds] || 0) + 1;
+          cur.setDate(cur.getDate() + 1);
+        }
+      } else if (ev.date.startsWith(prefixMois)) {
+        evParJour[ev.date] = (evParJour[ev.date] || 0) + 1;
+      }
     }
   });
 
@@ -316,7 +328,10 @@ function renderDayDetail(dateStr) {
 
   // Événements du jour
   const evJour = Object.entries(allEvents)
-    .filter(([k,v]) => !v.supprime && v.date === dateStr)
+    .filter(([k,v]) => !v.supprime && v.date && (
+      v.date === dateStr ||
+      (v.dateFin && v.date <= dateStr && v.dateFin >= dateStr)
+    ))
     .sort((a,b) => (a[1].heure||"99:99").localeCompare(b[1].heure||"99:99"));
 
   const el = document.getElementById("jour-events");
@@ -335,6 +350,7 @@ function renderDayDetail(dateStr) {
         <div class="jour-ev-titre">${ev.titre}</div>
         ${ev.qui      ? `<div class="jour-ev-meta">👤 ${ev.qui}</div>` : ""}
         ${catLabel    ? `<div class="jour-ev-meta">${catLabel}</div>` : ""}
+        ${ev.dateFin  ? `<div class="jour-ev-meta">📅 jusqu'au ${(d => `${d.getDate()} ${MOIS_LONG[d.getMonth()]}`)(new Date(ev.dateFin+"T12:00:00"))}</div>` : ""}
         ${ev.note     ? `<div class="jour-ev-note">${ev.note}</div>` : ""}
         <div class="jour-ev-btns">
           <button class="btn-small" onclick="ouvrirEdition('${key}')">✏️ Modifier</button>
@@ -573,18 +589,25 @@ window.togglePlanJour = function(key) {
 /* ══════════════════════════════════════════════
    FORMULAIRE NOUVEL ÉVÉNEMENT / ÉDITION
 ══════════════════════════════════════════════ */
+function resetBtnSauver() {
+  const btn = document.querySelector("#modal-overlay .btn-sauver");
+  if (btn) { btn.disabled = false; btn.textContent = ""; btn.innerHTML = "💾 Enregistrer"; btn.style.background = ""; }
+}
+
 window.ouvrirFormulaire = function(dateDefaut) {
   editKey = null;
   selectedQui = new Set(["Céline","Yves"]);
   document.getElementById("form-titre-label").textContent = "Nouvel événement";
   document.getElementById("ev-titre").value = "";
   document.getElementById("ev-date").value  = dateDefaut || selectedDay || new Date().toISOString().slice(0,10);
+  document.getElementById("ev-date-fin").value  = "";
   document.getElementById("ev-heure").value     = "";
   document.getElementById("ev-heure-fin").value = "";
   document.getElementById("ev-cat").value       = "famille";
   document.getElementById("ev-note").value  = "";
   renderQuiButtons();
   majFormCat();
+  resetBtnSauver();
   document.getElementById("modal-overlay").style.display = "flex";
 };
 
@@ -600,10 +623,12 @@ window.ouvrirEdition = function(key) {
   document.getElementById("ev-date").value  = ev.date      || "";
   document.getElementById("ev-heure").value     = ev.heure     || "";
   document.getElementById("ev-heure-fin").value = ev.heureFin  || "";
+  document.getElementById("ev-date-fin").value  = ev.dateFin   || "";
   document.getElementById("ev-cat").value       = ev.categorie || "famille";
   document.getElementById("ev-note").value  = ev.note      || "";
   renderQuiButtons();
   majFormCat();
+  resetBtnSauver();
   document.getElementById("modal-overlay").style.display = "flex";
 };
 
@@ -633,12 +658,16 @@ window.majFormCat = function() {
   const valRow   = document.getElementById("valentin-row");
   const sportRow = document.getElementById("sport-row");
   const ecoleRow = document.getElementById("ecole-row");
+  const vacFinRow= document.getElementById("vacances-datefin-row");
+  const dateLabel= document.getElementById("ev-date-label");
 
   datHRow.style.display  = "block";
   planRow.style.display  = "none";
   valRow.style.display   = "none";
   sportRow.style.display = "none";
-  if (ecoleRow) ecoleRow.style.display = "none";
+  if (ecoleRow)  ecoleRow.style.display  = "none";
+  if (vacFinRow) vacFinRow.style.display = "none";
+  if (dateLabel) dateLabel.textContent   = "Date *";
 
   noteRow.style.display = "block";
   if (cat === "autre")      noteLabel.textContent = "Note / précision *";
@@ -664,6 +693,9 @@ window.majFormCat = function() {
   } else if (cat === "ecole") {
     datHRow.style.display  = "none";
     if (ecoleRow) { ecoleRow.style.display = "block"; renderEcolePanel(); }
+  } else if (cat === "vacances") {
+    if (vacFinRow) vacFinRow.style.display = "block";
+    if (dateLabel) dateLabel.textContent   = "Date début *";
   }
 };
 
@@ -974,9 +1006,12 @@ window.sauvegarderEv = async function() {
   } else {
     const date = document.getElementById("ev-date").value;
     if (!date) { alert("La date est obligatoire"); return; }
+    const dateFin = document.getElementById("ev-date-fin").value || null;
+    if (cat === "vacances" && !dateFin) { alert("La date de fin est obligatoire pour les vacances"); return; }
     const data = {
       ...base,
       date,
+      dateFin,
       heure:    document.getElementById("ev-heure").value     || null,
       heureFin: document.getElementById("ev-heure-fin").value || null,
       createdAt: editKey ? undefined : new Date().toISOString(),
@@ -1649,7 +1684,7 @@ html,body {
     <!-- Date + Heure (masqué si travail) -->
     <div class="form-row form-row-3" id="date-heure-row">
       <div>
-        <label class="form-label">Date *</label>
+        <label class="form-label" id="ev-date-label">Date *</label>
         <input id="ev-date" class="form-input" type="date">
       </div>
       <div>
@@ -1660,6 +1695,12 @@ html,body {
         <label class="form-label">Heure fin</label>
         <input id="ev-heure-fin" class="form-input" type="time">
       </div>
+    </div>
+
+    <!-- Date fin vacances (visible seulement pour 🏖️ Vacances) -->
+    <div class="form-row" id="vacances-datefin-row" style="display:none">
+      <label class="form-label">Date fin *</label>
+      <input id="ev-date-fin" class="form-input" type="date">
     </div>
 
     <!-- ══ PLANNING SEMAINE TRAVAIL ══ -->
