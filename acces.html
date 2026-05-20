@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, onValue, push, set, update, remove }
+import { getDatabase, ref, onValue, push, set, update, remove, get }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 const firebaseConfig = {
@@ -106,6 +106,44 @@ window.supprimerPersonne = function(key) {
 document.getElementById("inp-nom").addEventListener("keydown", e => {
   if (e.key === "Enter") { e.preventDefault(); window.ajouterPersonne(); }
 });
+
+/* ── Suppression événements futurs ─────────────────── */
+async function supprimerFuturs(categorie) {
+  const today = new Date().toISOString().slice(0, 10);
+  const label = categorie
+    ? { travail:"travail", sport:"sport", ecole:"école", valentin:"Valentin", anniversaire:"anniversaire" }[categorie] || categorie
+    : "TOUS (sauf anniversaires)";
+
+  if (!confirm(`Supprimer tous les événements "${label}" futurs (après aujourd'hui) ?\n\nCette action est irréversible.`)) return;
+
+  const snap = await get(ref(db, "evenements"));
+  const evts = snap.val() || {};
+
+  const aSupprimer = Object.entries(evts).filter(([, v]) => {
+    if (v.supprime) return false;
+    if (!v.date || v.date <= today) return false;
+    if (categorie) return v.categorie === categorie;
+    return v.categorie !== "anniversaire";
+  });
+
+  if (aSupprimer.length === 0) { alert("Aucun événement futur trouvé."); return; }
+
+  const btn = document.getElementById(`btn-del-${categorie || "tout"}`);
+  if (btn) { btn.disabled = true; btn.textContent = "Suppression…"; }
+
+  await Promise.all(aSupprimer.map(([k]) =>
+    update(ref(db, `evenements/${k}`), { supprime: true, suppressAt: new Date().toISOString() })
+  ));
+
+  if (btn) { btn.disabled = false; btn.textContent = btn.dataset.label; }
+  alert(`✅ ${aSupprimer.length} événement(s) supprimé(s).`);
+}
+
+window.supprimerTravailFuturs     = () => supprimerFuturs("travail");
+window.supprimerSportFuturs       = () => supprimerFuturs("sport");
+window.supprimerEcoleFuturs       = () => supprimerFuturs("ecole");
+window.supprimerValentinFuturs    = () => supprimerFuturs("valentin");
+window.supprimerTousFuturs        = () => supprimerFuturs(null);
 </script>
 
 <style>
@@ -190,6 +228,31 @@ html,body{
 
 .rien{font-size:13px;color:var(--gris);text-align:center;padding:20px 0;font-style:italic;}
 
+.del-grille{display:flex;flex-direction:column;gap:10px;}
+.del-ligne{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 0;border-bottom:1px solid #f5f2fa;
+}
+.del-ligne:last-child{border-bottom:none;}
+.del-info{font-size:14px;font-weight:500;color:var(--texte);}
+.del-info small{display:block;font-size:11px;color:var(--gris);font-weight:400;margin-top:2px;}
+.btn-suppr{
+  padding:7px 14px;border-radius:20px;border:none;cursor:pointer;
+  font-size:12px;font-weight:700;font-family:'DM Sans',sans-serif;
+  background:var(--rouge-pale);color:var(--rouge);white-space:nowrap;
+  -webkit-tap-highlight-color:transparent;
+}
+.btn-suppr:active{opacity:.75;}
+.btn-suppr:disabled{opacity:.4;cursor:default;}
+.btn-suppr-tout{
+  width:100%;padding:14px;border-radius:12px;border:none;cursor:pointer;
+  background:linear-gradient(135deg,#c0392b,#e74c3c);
+  color:#fff;font-size:15px;font-weight:700;font-family:'DM Sans',sans-serif;
+  margin-top:6px;-webkit-tap-highlight-color:transparent;
+}
+.btn-suppr-tout:active{opacity:.85;}
+.btn-suppr-tout:disabled{opacity:.4;cursor:default;}
+
 .nav-bas{
   position:fixed;bottom:0;left:50%;transform:translateX(-50%);
   width:100%;max-width:480px;background:var(--blanc);
@@ -238,6 +301,48 @@ html,body{
       <input id="inp-nom" class="ajout-input" type="text" placeholder="Prénom de la personne…" autocomplete="off">
       <button class="ajout-btn" onclick="ajouterPersonne()">Ajouter</button>
     </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <span class="section-titre">🗑️ Supprimer les événements futurs</span>
+  </div>
+  <div class="section-body">
+    <div class="del-grille">
+      <div class="del-ligne">
+        <div class="del-info">💼 Travail
+          <small>Tous les jours de travail après aujourd'hui</small>
+        </div>
+        <button id="btn-del-travail" class="btn-suppr" data-label="Supprimer"
+          onclick="supprimerTravailFuturs()">Supprimer</button>
+      </div>
+      <div class="del-ligne">
+        <div class="del-info">⚽ Sport
+          <small>Tous les entraînements après aujourd'hui</small>
+        </div>
+        <button id="btn-del-sport" class="btn-suppr" data-label="Supprimer"
+          onclick="supprimerSportFuturs()">Supprimer</button>
+      </div>
+      <div class="del-ligne">
+        <div class="del-info">🎒 École / Vacances scolaires
+          <small>Toutes les absences scolaires après aujourd'hui</small>
+        </div>
+        <button id="btn-del-ecole" class="btn-suppr" data-label="Supprimer"
+          onclick="supprimerEcoleFuturs()">Supprimer</button>
+      </div>
+      <div class="del-ligne">
+        <div class="del-info">💚 Semaines Valentin
+          <small>Toutes les semaines Valentin après aujourd'hui</small>
+        </div>
+        <button id="btn-del-valentin" class="btn-suppr" data-label="Supprimer"
+          onclick="supprimerValentinFuturs()">Supprimer</button>
+      </div>
+    </div>
+    <button id="btn-del-tout" class="btn-suppr-tout" data-label="🗑️ Tout supprimer (sauf anniversaires)"
+      onclick="supprimerTousFuturs()">
+      🗑️ Tout supprimer (sauf anniversaires)
+    </button>
   </div>
 </div>
 

@@ -449,27 +449,28 @@
   onValue(ref(db,"evenements"), snap => {
     const evts = snap.val() || {};
     const today = new Date().toISOString().slice(0,10);
+
+    // Badge cœur = événements du jour
     const evJour = Object.values(evts).filter(v => !v.supprime && v.date === today);
-    const count  = evJour.length;
-
-    // Badge numérique sur le cœur du milieu
+    const countJour = evJour.length;
     const badge = document.getElementById("badge-count");
-    if (badge) badge.textContent = count;
+    if (badge) badge.textContent = countJour > 0 ? countJour : "";
 
-    // Badge icône PWA
-    if (window.majBadge) window.majBadge(count);
+    // Badge icône PWA = nouveaux événements non encore vus par tous
+    const countNew = Object.values(evts).filter(v => v.isNew && !v.supprime).length;
+    if (window.majBadge) window.majBadge(countNew);
 
-    // Notification si nouvelle entrée depuis la dernière visite
+    // Notification push si nouvel événement depuis la dernière visite
     const lastSeen = localStorage.getItem('lastSeen_ev') || '';
     const nouvelles = Object.values(evts).filter(v =>
-      !v.supprime && v.createdAt && v.createdAt > lastSeen
+      !v.supprime && v.isNew && v.createdAt && v.createdAt > lastSeen
     );
     if (nouvelles.length > 0 && lastSeen && window.envoyerNotification) {
       const n = nouvelles[0];
       window.envoyerNotification(
-        '📅 Nouvel événement — Céline & Yves',
-        (n.titre||'Nouveau') + (n.date?' le '+n.date.split('-').reverse().join('/'):'' ),
-        '/agenda.html'
+        '🌸 Nouvel événement — Céline & Yves',
+        (n.titre||'Nouveau') + (n.date ? ' le '+n.date.split('-').reverse().join('/') : ''),
+        '/index.html'
       );
     }
     localStorage.setItem('lastSeen_ev', new Date().toISOString());

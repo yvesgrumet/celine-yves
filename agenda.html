@@ -232,8 +232,10 @@ function renderMonthList() {
   const m = viewDate.getMonth();
   const prefix = `${y}-${String(m+1).padStart(2,"0")}`;
 
+  const CATS_LISTE_MOIS = ["rdv", "anniversaire"];
   const evMois = Object.entries(allEvents)
-    .filter(([k,v]) => !v.supprime && v.date && v.date.startsWith(prefix))
+    .filter(([k,v]) => !v.supprime && v.date && v.date.startsWith(prefix)
+      && CATS_LISTE_MOIS.includes(v.categorie))
     .sort((a,b) => {
       const da = a[1].date + (a[1].heure||"99:99");
       const db2 = b[1].date + (b[1].heure||"99:99");
