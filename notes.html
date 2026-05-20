@@ -109,6 +109,23 @@ html,body{
   text-align:left;font-family:'DM Sans',sans-serif;
 }
 
+/* IMAGE NOTE */
+.note-image{
+  width:100%;max-height:220px;object-fit:cover;
+  border-radius:0 0 var(--radius) var(--radius);display:block;
+}
+.btn-camera{
+  display:flex;align-items:center;gap:8px;
+  padding:9px 14px;border-radius:10px;
+  border:1.5px dashed var(--mauve-mid);background:var(--mauve-pale);
+  color:var(--mauve-f);font-size:13px;font-weight:600;cursor:pointer;
+  width:100%;margin-bottom:6px;
+}
+.camera-preview{
+  width:100%;max-height:180px;object-fit:cover;
+  border-radius:10px;margin-top:6px;display:none;
+}
+
 /* VIDE */
 .vide{
   text-align:center;padding:40px 20px;color:var(--gris);
@@ -298,6 +315,14 @@ textarea.form-input{resize:vertical;min-height:120px;}
       <label class="form-label">Contenu *</label>
       <textarea id="note-contenu" class="form-input" rows="5"
         placeholder="Écrivez votre note ici…"></textarea>
+    </div>
+
+    <!-- Photo -->
+    <div class="form-row">
+      <label class="form-label">Photo (optionnel)</label>
+      <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none" onchange="onCameraChange(event)">
+      <button type="button" class="btn-camera" onclick="document.getElementById('camera-input').click()">📷 Prendre une photo / choisir une image</button>
+      <img id="camera-preview" class="camera-preview" alt="aperçu">
     </div>
 
     <!-- Importance -->
@@ -495,13 +520,13 @@ function renderNotes() {
           '<button class="btn-icon" onclick="supprimerNote(\''+key+'\')" title="Supprimer">🗑️</button>' +
         '</div>' +
       '</div>' +
-      '<div class="note-contenu' + (!isExp && long ? ' tronque' : '') + '">' +
-        escHtml(contenu) +
-      '</div>' +
+      (contenu ? '<div class="note-contenu' + (!isExp && long ? ' tronque' : '') + '">' +
+        escHtml(contenu) + '</div>' : '') +
       (long && !isExp ?
         '<button class="note-lire-plus" onclick="toggleExpand(\''+key+'\')">▼ Lire la suite</button>' : '') +
       (long && isExp ?
         '<button class="note-lire-plus" onclick="toggleExpand(\''+key+'\')">▲ Réduire</button>' : '') +
+      (n.image ? '<img class="note-image" src="'+n.image+'" alt="photo">' : '') +
     '</div>';
   }).join('');
 }
@@ -517,6 +542,43 @@ function toggleExpand(key) {
   renderNotes();
 }
 
+/* ── Camera / image ────────────────────────── */
+var pendingImage = null; // base64 string or null
+
+function onCameraChange(e) {
+  var file = e.target.files && e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    var img = new Image();
+    img.onload = function() {
+      var MAX = 900;
+      var w = img.width, h = img.height;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+        else       { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      pendingImage = canvas.toDataURL('image/jpeg', 0.75);
+      var prev = document.getElementById('camera-preview');
+      prev.src = pendingImage;
+      prev.style.display = 'block';
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearCameraForm() {
+  pendingImage = null;
+  document.getElementById('camera-input').value = '';
+  var prev = document.getElementById('camera-preview');
+  prev.src = '';
+  prev.style.display = 'none';
+}
+
 /* ── Formulaire ────────────────────────────── */
 function ouvrirFormulaire() {
   editKey = null;
@@ -525,6 +587,7 @@ function ouvrirFormulaire() {
   document.getElementById('note-contenu').value = '';
   document.getElementById('note-imp').checked   = false;
   majToggleImp(false);
+  clearCameraForm();
   document.getElementById('modal-overlay').style.display = 'flex';
   setTimeout(function(){ document.getElementById('note-titre').focus(); }, 200);
 }
@@ -536,6 +599,13 @@ function ouvrirEdition(key) {
   document.getElementById('form-titre').textContent    = 'Modifier la note';
   document.getElementById('note-titre').value          = n.titre   || '';
   document.getElementById('note-contenu').value        = n.contenu || '';
+  clearCameraForm();
+  if (n.image) {
+    pendingImage = n.image;
+    var prev = document.getElementById('camera-preview');
+    prev.src = n.image;
+    prev.style.display = 'block';
+  }
   document.getElementById('note-imp').checked          = !!n.importante;
   majToggleImp(!!n.importante);
   document.getElementById('modal-overlay').style.display = 'flex';
@@ -568,12 +638,13 @@ function sauvegarderNote() {
   if(btn&&btn.disabled)return;
   var titre   = document.getElementById('note-titre').value.trim();
   var contenu = document.getElementById('note-contenu').value.trim();
-  if (!titre)   { alert('Le titre est obligatoire'); return; }
-  if (!contenu) { alert('Le contenu est obligatoire'); return; }
+  if (!titre)               { alert('Le titre est obligatoire'); return; }
+  if (!contenu && !pendingImage) { alert('Le contenu ou une photo est obligatoire'); return; }
 
   var data = {
     titre:      titre,
-    contenu:    contenu,
+    contenu:    contenu || null,
+    image:      pendingImage || null,
     importante: document.getElementById('note-imp').checked,
     modifiedAt: new Date().toISOString(),
     supprime:   false

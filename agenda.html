@@ -233,8 +233,10 @@ function renderMonthList() {
   const prefix = `${y}-${String(m+1).padStart(2,"0")}`;
 
   const CATS_LISTE_MOIS = ["rdv", "anniversaire"];
+  const today = new Date().toISOString().slice(0, 10);
   const evMois = Object.entries(allEvents)
     .filter(([k,v]) => !v.supprime && v.date && v.date.startsWith(prefix)
+      && (v.categorie === "anniversaire" || v.date >= today)
       && CATS_LISTE_MOIS.includes(v.categorie))
     .sort((a,b) => {
       const da = a[1].date + (a[1].heure||"99:99");
@@ -257,7 +259,8 @@ function renderMonthList() {
       lastDate = ev.date;
     }
     const couleur = CAT_COULEURS[ev.categorie] || "#888";
-    const h = ev.heure ? `<span class="ml-heure">${ev.heure}</span>` : "";
+    const hLabel = ev.heure ? (ev.heureFin ? `${ev.heure}–${ev.heureFin}` : ev.heure) : "";
+    const h = hLabel ? `<span class="ml-heure">${hLabel}</span>` : "";
     const q = ev.qui   ? `<span class="ml-qui">${ev.qui}</span>` : "";
     html += `
       <div class="ml-item" onclick="selectDay('${ev.date}')">
@@ -327,7 +330,7 @@ function renderDayDetail(dateStr) {
     const catLabel = CAT_LIST.find(c => c.val === ev.categorie)?.label || "";
     return `
     <div class="jour-ev-item">
-      <div class="jour-ev-heure">${ev.heure || "—"}</div>
+      <div class="jour-ev-heure">${ev.heure ? (ev.heureFin ? ev.heure + "–" + ev.heureFin : ev.heure) : "—"}</div>
       <div class="jour-ev-corps" style="border-left:3px solid ${couleur}">
         <div class="jour-ev-titre">${ev.titre}</div>
         ${ev.qui      ? `<div class="jour-ev-meta">👤 ${ev.qui}</div>` : ""}
@@ -576,8 +579,9 @@ window.ouvrirFormulaire = function(dateDefaut) {
   document.getElementById("form-titre-label").textContent = "Nouvel événement";
   document.getElementById("ev-titre").value = "";
   document.getElementById("ev-date").value  = dateDefaut || selectedDay || new Date().toISOString().slice(0,10);
-  document.getElementById("ev-heure").value = "";
-  document.getElementById("ev-cat").value   = "famille";
+  document.getElementById("ev-heure").value     = "";
+  document.getElementById("ev-heure-fin").value = "";
+  document.getElementById("ev-cat").value       = "famille";
   document.getElementById("ev-note").value  = "";
   renderQuiButtons();
   majFormCat();
@@ -594,8 +598,9 @@ window.ouvrirEdition = function(key) {
   document.getElementById("form-titre-label").textContent = "Modifier l'événement";
   document.getElementById("ev-titre").value = ev.titre     || "";
   document.getElementById("ev-date").value  = ev.date      || "";
-  document.getElementById("ev-heure").value = ev.heure     || "";
-  document.getElementById("ev-cat").value   = ev.categorie || "famille";
+  document.getElementById("ev-heure").value     = ev.heure     || "";
+  document.getElementById("ev-heure-fin").value = ev.heureFin  || "";
+  document.getElementById("ev-cat").value       = ev.categorie || "famille";
   document.getElementById("ev-note").value  = ev.note      || "";
   renderQuiButtons();
   majFormCat();
@@ -917,7 +922,9 @@ window.sauvegarderEv = async function() {
 
   } else if (cat === "sport") {
     if (sportJours.size === 0) { alert("Sélectionnez au moins un jour"); return; }
-    const discipline = document.getElementById("ev-note").value.trim() || "";
+    const discipline  = document.getElementById("ev-note").value.trim() || "";
+    const sportHDeb   = document.getElementById("sport-heure-deb").value || null;
+    const sportHFin   = document.getElementById("sport-heure-fin").value || null;
     let curSem = sportSemDeb;
     const maxIter = 200; let iter = 0;
     while (iter++ < maxIter && curSem <= sportSemFin) {
@@ -928,9 +935,10 @@ window.sauvegarderEv = async function() {
           const dateJ = addJours(lundi, idx);
           await push(ref(db,"evenements"), {
             ...base,
-            date: dateToStr(dateJ),
-            heure: null,
-            note: discipline || null,
+            date:     dateToStr(dateJ),
+            heure:    sportHDeb,
+            heureFin: sportHFin,
+            note:     discipline || null,
             createdAt: new Date().toISOString()
           });
         }
@@ -969,7 +977,8 @@ window.sauvegarderEv = async function() {
     const data = {
       ...base,
       date,
-      heure: document.getElementById("ev-heure").value || null,
+      heure:    document.getElementById("ev-heure").value     || null,
+      heureFin: document.getElementById("ev-heure-fin").value || null,
       createdAt: editKey ? undefined : new Date().toISOString(),
       isNew:     editKey ? undefined : true,
       vus:       editKey ? undefined : {}
@@ -1312,6 +1321,7 @@ html,body {
 }
 .form-input:focus { border-color:var(--mauve); }
 .form-row-2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.form-row-3 { display:grid; grid-template-columns:2fr 1fr 1fr; gap:10px; }
 
 .form-qui-grid {
   display:flex; gap:10px;
@@ -1637,14 +1647,18 @@ html,body {
     </div>
 
     <!-- Date + Heure (masqué si travail) -->
-    <div class="form-row form-row-2" id="date-heure-row">
+    <div class="form-row form-row-3" id="date-heure-row">
       <div>
         <label class="form-label">Date *</label>
         <input id="ev-date" class="form-input" type="date">
       </div>
       <div>
-        <label class="form-label">Heure (optionnel)</label>
+        <label class="form-label">Heure début</label>
         <input id="ev-heure" class="form-input" type="time">
+      </div>
+      <div>
+        <label class="form-label">Heure fin</label>
+        <input id="ev-heure-fin" class="form-input" type="time">
       </div>
     </div>
 
@@ -1763,6 +1777,18 @@ html,body {
           <div class="plan-sem-champ">
             <span class="plan-sem-label">À sem.</span>
             <input type="number" id="sport-sem-fin" class="plan-num-input" value="52" min="1" max="53" onchange="majSportSem('fin')">
+          </div>
+        </div>
+
+        <!-- Horaires sport -->
+        <div style="display:flex;gap:10px;margin-bottom:10px">
+          <div class="plan-sem-champ">
+            <span class="plan-sem-label">Heure début</span>
+            <input type="time" id="sport-heure-deb" class="plan-num-input" style="width:90px">
+          </div>
+          <div class="plan-sem-champ">
+            <span class="plan-sem-label">Heure fin</span>
+            <input type="time" id="sport-heure-fin" class="plan-num-input" style="width:90px">
           </div>
         </div>
 
