@@ -20,6 +20,7 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
   import { getDatabase, ref, onValue, push, set, remove, update, get }
     from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+  import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyB1cKDJSyHoUcq07yL8k7t_q3WNZ4ZaBJw",
@@ -33,6 +34,25 @@
 
   const app = initializeApp(firebaseConfig);
   const db  = getDatabase(app);
+  const auth = getAuth(app);
+  const AUTH_KEY='cy_app_auth';
+  function checkAuth(){
+    if(localStorage.getItem(AUTH_KEY)){signInAnonymously(auth);return;}
+    document.getElementById('pwOverlay').style.display='flex';
+  }
+  window.submitPw=function(){
+    const v=document.getElementById('pwInput').value.trim().toLowerCase();
+    if(v==='amour'){
+      signInAnonymously(auth).then(function(){
+        localStorage.setItem(AUTH_KEY,'1');
+        document.getElementById('pwOverlay').style.display='none';
+      });
+    } else {
+      document.getElementById('pwError').style.display='block';
+      document.getElementById('pwInput').value='';
+    }
+  };
+  window.addEventListener('DOMContentLoaded',checkAuth);
 
   /* ── Helpers ─────────────────────────────────────── */
   function todayStr() {
@@ -59,6 +79,7 @@
         `https://api.open-meteo.com/v1/forecast?latitude=${ville.lat}&longitude=${ville.lon}` +
         `&current=temperature_2m,weathercode&timezone=Europe/Paris`
       );
+      if (!r.ok) throw new Error(r.status);
       const d = await r.json();
       const temp = Math.round(d.current.temperature_2m);
       const ic   = ICONES_METEO[d.current.weathercode] || "🌡️";
@@ -240,7 +261,7 @@
         });
         const el = document.getElementById("anniversaires-bloc");
         if (anniversaires.length > 0) {
-          el.innerHTML = anniversaires.map(a => `🎂 Joyeux anniversaire <strong>${a}</strong> !`).join("<br>");
+          el.innerHTML = anniversaires.map(a => `🎂 Joyeux anniversaire <strong>${escHtml(a)}</strong> !`).join("<br>");
           el.style.display = "block";
         } else {
           el.style.display = "none";
@@ -269,9 +290,9 @@
         return;
       }
       el.innerHTML = evJour.map(ev => {
-        const h = ev.heure ? `<span class="ev-heure">${ev.heure}</span>` : "";
-        const qui = ev.qui ? `<span class="ev-qui">${ev.qui}</span>` : "";
-        return `<div class="ev-item">${h}<span class="ev-titre">${ev.titre}</span>${qui}</div>`;
+        const h = ev.heure ? `<span class="ev-heure">${escHtml(ev.heure)}</span>` : "";
+        const qui = ev.qui ? `<span class="ev-qui">${escHtml(ev.qui)}</span>` : "";
+        return `<div class="ev-item">${h}<span class="ev-titre">${escHtml(ev.titre||"")}</span>${qui}</div>`;
       }).join("");
     });
   }
@@ -305,11 +326,11 @@
       el.innerHTML = prochains.slice(0,5).map(ev => {
         const d = new Date(ev.date+"T12:00:00");
         const label = `${joursF[d.getDay()]} ${d.getDate()}`;
-        const h = ev.heure ? ` ${ev.heure}` : "";
-        const qui = ev.qui ? `<span class="prochain-qui">${ev.qui}</span>` : "";
+        const h = ev.heure ? ` ${escHtml(ev.heure)}` : "";
+        const qui = ev.qui ? `<span class="prochain-qui">${escHtml(ev.qui)}</span>` : "";
         return `<div class="prochain-item">
           <span class="prochain-date">${label}</span>
-          <span class="prochain-titre">${ev.titre}${h}</span>
+          <span class="prochain-titre">${escHtml(ev.titre||"")}${h}</span>
           ${qui}
         </div>`;
       }).join("");
@@ -335,8 +356,8 @@
       const cochés = Object.values(liste.items || {}).filter(i => i.coche);
 
       document.getElementById("courses-items").innerHTML =
-        items.map(i => `<span class="course-tag">${i.nom}</span>`).join("") +
-        cochés.map(i => `<span class="course-tag fait">${i.nom}</span>`).join("");
+        items.map(i => `<span class="course-tag">${escHtml(i.nom||"")}</span>`).join("") +
+        cochés.map(i => `<span class="course-tag fait">${escHtml(i.nom||"")}</span>`).join("");
 
       el.style.display = "block";
     });
@@ -361,6 +382,7 @@
 
   /* ── Nouveaux événements + "vu par" ──────────────── */
   let _accesPersonnes = [];
+  let _lastEvSnap = null;
 
   onValue(ref(db, "acces"), snapA => {
     _accesPersonnes = Object.values(snapA.val() || {})
@@ -369,8 +391,6 @@
       .sort();
     renderNouveaux();
   });
-
-  onValue(ref(db, "evenements"), () => renderNouveaux());
 
   function renderNouveaux() {
     const snap = _lastEvSnap;
@@ -405,7 +425,7 @@
         <div class="nouveau-info">
           <span class="nouveau-date">${dateLabel}</span>
           <span class="nouveau-titre">${escHtml(ev.titre || "")}</span>
-          ${ev.qui ? `<span class="nouveau-qui">${ev.qui}</span>` : ""}
+          ${ev.qui ? `<span class="nouveau-qui">${escHtml(ev.qui)}</span>` : ""}
         </div>
         <div class="vu-btns">${vuBtns || '<span style="font-size:12px;color:var(--gris);font-style:italic">Aucun accès configuré — <a href="acces.html" style="color:#9b6fc4">Configurer</a></span>'}</div>
       </div>`;
@@ -416,7 +436,6 @@
     el.innerHTML = lignes;
   }
 
-  let _lastEvSnap = null;
   onValue(ref(db, "evenements"), snap => {
     _lastEvSnap = snap;
     renderNouveaux();
@@ -1137,5 +1156,15 @@ body {
   </a>
 </nav>
 
+<div id="pwOverlay" style="display:none;position:fixed;inset:0;background:linear-gradient(135deg,#6a2fa0,#9b6fc4 60%,#c9a8e8);z-index:9999;align-items:center;justify-content:center;flex-direction:column;padding:30px;">
+  <div style="background:#fff;border-radius:18px;padding:36px 28px;max-width:380px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <div style="font-size:3rem;margin-bottom:14px;">🔐</div>
+    <div style="font-family:'Playfair Display',serif;font-size:1.4rem;color:#6a2fa0;margin-bottom:8px;">Céline & Yves</div>
+    <div style="font-size:0.92rem;color:#6b5d7a;margin-bottom:22px;">Entre le mot de passe</div>
+    <input type="password" id="pwInput" style="width:100%;padding:14px;font-size:1.2rem;border:1.5px solid #d4b8ef;border-radius:24px;text-align:center;outline:none;color:#2a1a3e;letter-spacing:4px;" placeholder="••••••" onkeydown="if(event.key==='Enter')submitPw()">
+    <div id="pwError" style="display:none;color:#c0392b;margin-top:10px;font-size:0.88rem;">❌ Mot de passe incorrect</div>
+    <button onclick="submitPw()" style="margin-top:18px;width:100%;padding:14px;background:linear-gradient(135deg,#6a2fa0,#9b6fc4);color:#fff;border:none;border-radius:24px;font-size:1rem;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:700;">Entrer ✓</button>
+  </div>
+</div>
 </body>
 </html>

@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -304,6 +305,24 @@ firebase.initializeApp({
   appId: "1:1024885005035:web:fd92a0a8fc07eb78a17cae"
 });
 var db = firebase.database();
+const AUTH_KEY='cy_app_auth';
+function checkAuth(){
+  if(localStorage.getItem(AUTH_KEY)){firebase.auth().signInAnonymously();return;}
+  document.getElementById('pwOverlay').style.display='flex';
+}
+function submitPw(){
+  const v=document.getElementById('pwInput').value.trim().toLowerCase();
+  if(v==='amour'){
+    firebase.auth().signInAnonymously().then(function(){
+      localStorage.setItem(AUTH_KEY,'1');
+      document.getElementById('pwOverlay').style.display='none';
+    });
+  } else {
+    document.getElementById('pwError').style.display='block';
+    document.getElementById('pwInput').value='';
+  }
+}
+window.addEventListener('DOMContentLoaded',checkAuth);
 
 /* Feedback anti double-clic */
 function feedbackSauvegarde(callback) {
@@ -564,5 +583,15 @@ function annulerSuppr(){
 /* ── Init ────────────────────────────────── */
 majTitre();
 </script>
+<div id="pwOverlay" style="display:none;position:fixed;inset:0;background:linear-gradient(135deg,#6a2fa0,#9b6fc4 60%,#c9a8e8);z-index:9999;align-items:center;justify-content:center;flex-direction:column;padding:30px;">
+  <div style="background:#fff;border-radius:18px;padding:36px 28px;max-width:380px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <div style="font-size:3rem;margin-bottom:14px;">🔐</div>
+    <div style="font-family:'Playfair Display',serif;font-size:1.4rem;color:#6a2fa0;margin-bottom:8px;">Céline & Yves</div>
+    <div style="font-size:0.92rem;color:#6b5d7a;margin-bottom:22px;">Entre le mot de passe</div>
+    <input type="password" id="pwInput" style="width:100%;padding:14px;font-size:1.2rem;border:1.5px solid #d4b8ef;border-radius:24px;text-align:center;outline:none;color:#2a1a3e;letter-spacing:4px;" placeholder="••••••" onkeydown="if(event.key==='Enter')submitPw()">
+    <div id="pwError" style="display:none;color:#c0392b;margin-top:10px;font-size:0.88rem;">❌ Mot de passe incorrect</div>
+    <button onclick="submitPw()" style="margin-top:18px;width:100%;padding:14px;background:linear-gradient(135deg,#6a2fa0,#9b6fc4);color:#fff;border:none;border-radius:24px;font-size:1rem;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:700;">Entrer ✓</button>
+  </div>
+</div>
 </body>
 </html>
