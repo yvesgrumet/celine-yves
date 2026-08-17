@@ -610,6 +610,34 @@ window.togglePlanJour = function(key) {
   hrs.style.display = cb.checked ? "flex" : "none";
 };
 
+/* Mode de saisie du planning Travail : "semaine" (une seule) ou "plage" */
+let planMode = "semaine";
+window.setPlanMode = function(m) {
+  planMode = m;
+  const uneSemaine = (m === "semaine");
+  const bS = document.getElementById("planmode-semaine");
+  const bP = document.getElementById("planmode-plage");
+  if (bS) bS.classList.toggle("actif", uneSemaine);
+  if (bP) bP.classList.toggle("actif", !uneSemaine);
+  const finWrap  = document.getElementById("plan-fin-wrap");
+  const saufWrap = document.getElementById("plan-sauf-wrap");
+  const btnNext  = document.getElementById("btn-sem-suivante");
+  const titreDeb = document.getElementById("plan-titre-deb");
+  if (finWrap)  finWrap.style.display  = uneSemaine ? "none" : "block";
+  if (saufWrap) saufWrap.style.display = uneSemaine ? "none" : "block";
+  if (btnNext)  btnNext.style.display  = uneSemaine ? "block" : "none";
+  if (titreDeb) titreDeb.textContent   = uneSemaine ? "Semaine" : "Semaine du";
+  // En mode plage, la fin ne peut pas être avant le début
+  if (!uneSemaine &&
+      (planFin.annee < planDeb.annee ||
+       (planFin.annee === planDeb.annee && planFin.semaine < planDeb.semaine))) {
+    planFin = { ...planDeb };
+    const sf = document.getElementById("plan-sem-fin");   if (sf) sf.value = planFin.semaine;
+    const af = document.getElementById("plan-annee-fin"); if (af) af.value = planFin.annee;
+    majLabelsSemaines();
+  }
+};
+
 /* ══════════════════════════════════════════════
    FORMULAIRE NOUVEL ÉVÉNEMENT / ÉDITION
 ══════════════════════════════════════════════ */
@@ -708,6 +736,7 @@ window.majFormCat = function() {
     renderQuiButtons();
     renderPlanningTravail();
     renderTravailSaufListe();
+    setPlanMode("semaine");   // par défaut : saisie d'une seule semaine
   } else if (cat === "valentin") {
     datHRow.style.display = "none";
     valRow.style.display  = "block";
@@ -915,6 +944,71 @@ window.retirerEcolePeriode = function(i) {
   ecolePeriodes.splice(i, 1);
   renderEcolePanel();
 };
+/* ── Helpers Travail (partagés entre "Enregistrer" et "semaine suivante") ── */
+function lireJoursCochesTravail() {
+  const jours = [];
+  for (const j of JOURS_PLANNING) {
+    const cb = document.getElementById(`pj-${j.key}`);
+    if (!cb?.checked) continue;
+    const hdeb = document.getElementById(`ph-deb-val-${j.key}`)?.value || hm(planHeures[j.key].deb);
+    const hfin = document.getElementById(`ph-fin-val-${j.key}`)?.value || hm(planHeures[j.key].fin);
+    jours.push({ index: JOURS_PLANNING.indexOf(j), hdeb, hfin });
+  }
+  return jours;
+}
+function setDejaTravail() {
+  return new Set(
+    Object.values(allEvents)
+      .filter(v => v && !v.supprime && v.categorie === "travail" && v.date)
+      .map(v => `${v.date}|${v.heure || ""}`)
+  );
+}
+async function creerTravailSemaine(base, joursCoches, an, sem, dejaSet) {
+  const lundi = lundoDeSemaine(an, sem);
+  for (const jc of joursCoches) {
+    const dateJ = addJours(lundi, jc.index);
+    const dStr  = dateToStr(dateJ);
+    const cle   = `${dStr}|${jc.hdeb || ""}`;
+    if (dejaSet.has(cle)) continue;   // anti-doublon
+    dejaSet.add(cle);
+    const heureLabel = (jc.hdeb && jc.hfin) ? `${jc.hdeb}–${jc.hfin}` : (jc.hdeb || null);
+    await push(ref(db,"evenements"), {
+      ...base, date: dStr,
+      heure: jc.hdeb || null, heureFin: jc.hfin || null,
+      note: base.note || (heureLabel ? `Travail ${heureLabel}` : null),
+      createdAt: new Date().toISOString()
+    });
+  }
+}
+
+// Enregistre la semaine affichée puis passe à la suivante (mode "une semaine")
+window.sauvegarderEtSemaineSuivante = async function() {
+  const titre = document.getElementById("ev-titre").value.trim();
+  if (!titre) { alert("Le titre est obligatoire (ex : Travail)"); return; }
+  const joursCoches = lireJoursCochesTravail();
+  if (joursCoches.length === 0) { alert("Cochez au moins un jour"); return; }
+  const btn = document.getElementById("btn-sem-suivante");
+  if (btn && btn.disabled) return;
+  if (btn) { btn.disabled = true; btn.innerHTML = "⏳ Enregistrement..."; }
+  const base = {
+    titre,
+    qui: [...selectedQui].join(" & ") || "Céline",
+    categorie: "travail",
+    note: document.getElementById("ev-note").value.trim() || null,
+    modifiedAt: new Date().toISOString(),
+    supprime: false
+  };
+  await creerTravailSemaine(base, joursCoches, planDeb.annee, planDeb.semaine, setDejaTravail());
+  changerSemaine("deb", +1);   // avance d'une semaine (met à jour les champs + libellés)
+  renderCalendar();
+  renderMonthList();
+  if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = "✅ Semaine enregistrée — au suivant ›";
+    setTimeout(() => { if (btn) btn.innerHTML = "💾 Enregistrer + semaine suivante ›"; }, 1400);
+  }
+};
+
 window.sauvegarderEv = async function() {
   const btn = document.querySelector("#modal-overlay .btn-sauver");
   if (btn && btn.disabled) return; // anti double-clic
@@ -935,45 +1029,19 @@ window.sauvegarderEv = async function() {
   };
 
   if (cat === "travail") {
-    const joursCochesMod = [];
-    for (const j of JOURS_PLANNING) {
-      const cb = document.getElementById(`pj-${j.key}`);
-      if (!cb?.checked) continue;
-      const hdeb = document.getElementById(`ph-deb-val-${j.key}`)?.value || hm(planHeures[j.key].deb);
-      const hfin = document.getElementById(`ph-fin-val-${j.key}`)?.value || hm(planHeures[j.key].fin);
-      joursCochesMod.push({
-        index: JOURS_PLANNING.indexOf(j),
-        hdeb, hfin
-      });
-    }
+    const joursCochesMod = lireJoursCochesTravail();
     if (joursCochesMod.length === 0) { alert("Cochez au moins un jour"); resetBtnSauver(); return; }
-    // Anti-doublon : créneaux Travail déjà existants (date|heure)
-    const dejaTravail = new Set(
-      Object.values(allEvents)
-        .filter(v => v && !v.supprime && v.categorie === "travail" && v.date)
-        .map(v => `${v.date}|${v.heure || ""}`)
-    );
+    const dejaTravail = setDejaTravail();
+    // Mode "une semaine" : on ne crée que la semaine affichée. Mode "plage" : on boucle.
+    const finAn  = planMode === "semaine" ? planDeb.annee   : planFin.annee;
+    const finSem = planMode === "semaine" ? planDeb.semaine : planFin.semaine;
     let curAn = planDeb.annee, curSem = planDeb.semaine;
-    const maxIter = 200; let iter = 0;
+    const maxIter = 300; let iter = 0;
     while (iter++ < maxIter) {
       if (!planTravailSaufSems.has(curSem)) {
-        const lundi = lundoDeSemaine(curAn, curSem);
-        for (const jc of joursCochesMod) {
-          const dateJ = addJours(lundi, jc.index);
-          const dStr  = dateToStr(dateJ);
-          const cle   = `${dStr}|${jc.hdeb || ""}`;
-          if (dejaTravail.has(cle)) continue;   // déjà présent → on ne recrée pas
-          dejaTravail.add(cle);
-          const heureLabel = (jc.hdeb && jc.hfin) ? `${jc.hdeb}–${jc.hfin}` : (jc.hdeb || null);
-          await push(ref(db,"evenements"), {
-            ...base, date: dStr,
-            heure: jc.hdeb || null, heureFin: jc.hfin || null,
-            note: base.note || (heureLabel ? `Travail ${heureLabel}` : null),
-            createdAt: new Date().toISOString()
-          });
-        }
+        await creerTravailSemaine(base, joursCochesMod, curAn, curSem, dejaTravail);
       }
-      if (curAn === planFin.annee && curSem === planFin.semaine) break;
+      if (curAn === finAn && curSem === finSem) break;
       curSem++; if (curSem > 53) { curAn++; curSem = 1; }
     }
 
@@ -1487,6 +1555,21 @@ body{ height:auto; min-height:100%; padding-bottom:100px; }
 .plan-label-dates {
   font-size:11px; color:var(--mauve-f); font-weight:500; margin-top:5px;
 }
+.plan-mode-toggle { display:flex; gap:6px; margin-bottom:12px; }
+.plan-mode-btn {
+  flex:1; padding:8px 6px; border-radius:10px; cursor:pointer;
+  border:1.5px solid var(--mauve-mid); background:var(--blanc);
+  color:var(--gris); font-size:12.5px; font-weight:600;
+  font-family:'DM Sans',sans-serif; transition:all .15s;
+}
+.plan-mode-btn.actif { background:var(--mauve); border-color:var(--mauve); color:#fff; }
+.btn-sem-suivante {
+  width:100%; margin-top:12px; padding:12px; border:none; border-radius:12px;
+  background:var(--vert-val); color:#fff; font-size:14px; font-weight:700;
+  font-family:'DM Sans',sans-serif; cursor:pointer; transition:opacity .15s;
+}
+.btn-sem-suivante:active { opacity:.85; }
+.btn-sem-suivante:disabled { opacity:.6; cursor:default; }
 .plan-jours-titre {
   font-size:12px; font-weight:700; color:var(--gris);
   text-transform:uppercase; letter-spacing:.4px;
@@ -1778,9 +1861,14 @@ body{ height:auto; min-height:100%; padding-bottom:100px; }
       <div class="plan-semaine-nav">
         <label class="form-label" style="margin-bottom:10px">📅 Planning de travail</label>
 
+        <div class="plan-mode-toggle">
+          <button type="button" id="planmode-semaine" class="plan-mode-btn actif" onclick="setPlanMode('semaine')">Une semaine</button>
+          <button type="button" id="planmode-plage" class="plan-mode-btn" onclick="setPlanMode('plage')">Plage de semaines</button>
+        </div>
+
         <!-- Semaine DE -->
         <div class="plan-bloc-sem">
-          <span class="plan-bloc-titre">Semaine du</span>
+          <span class="plan-bloc-titre" id="plan-titre-deb">Semaine</span>
           <div class="plan-semaine-inputs">
             <div class="plan-sem-champ">
               <span class="plan-sem-label">Année</span>
@@ -1798,6 +1886,7 @@ body{ height:auto; min-height:100%; padding-bottom:100px; }
           <div id="plan-label-deb" class="plan-label-dates"></div>
         </div>
 
+        <div id="plan-fin-wrap" style="display:none">
         <div class="plan-fleche">↓</div>
 
         <!-- Semaine À -->
@@ -1819,6 +1908,7 @@ body{ height:auto; min-height:100%; padding-bottom:100px; }
           </div>
           <div id="plan-label-fin" class="plan-label-dates"></div>
         </div>
+        </div><!-- /plan-fin-wrap -->
       </div>
 
       <!-- Jours + horaires -->
@@ -1826,7 +1916,7 @@ body{ height:auto; min-height:100%; padding-bottom:100px; }
       <div class="plan-jours-container" id="planning-jours"></div>
 
       <!-- Sauf semaines -->
-      <div style="margin-top:10px">
+      <div id="plan-sauf-wrap" style="margin-top:10px;display:none">
         <span class="plan-sem-label" style="display:block;margin-bottom:6px">Sauf semaine n°</span>
         <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
           <input type="number" id="travail-sauf-input" class="plan-num-input" placeholder="n°" min="1" max="53" style="width:60px">
@@ -1834,6 +1924,8 @@ body{ height:auto; min-height:100%; padding-bottom:100px; }
         </div>
         <div id="travail-sauf-liste" style="font-size:12px;color:var(--gris)">Aucune semaine exclue</div>
       </div>
+
+      <button type="button" id="btn-sem-suivante" class="btn-sem-suivante" onclick="sauvegarderEtSemaineSuivante()">💾 Enregistrer + semaine suivante ›</button>
     </div>
 
     <!-- ══ PANNEAU VALENTIN ══ -->
