@@ -527,8 +527,14 @@ function supprimerPassion(key, i) {
 }
 
 /* ── Formulaire ────────────────────────────── */
+function resetBtnSauver() {
+  var btn = document.querySelector('.btn-sauver');
+  if (btn) { btn.disabled = false; btn.innerHTML = '💾 Enregistrer'; btn.style.background = ''; }
+}
+
 function ouvrirFormulaire(key) {
   editKey = key;
+  resetBtnSauver();
   var p = key ? (famille[key]||{}) : {};
   document.getElementById('form-titre').textContent = key ? 'Modifier '+( p.prenom||'') : 'Nouvelle personne';
   document.getElementById('f-prenom').value    = p.prenom       || '';

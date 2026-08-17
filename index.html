@@ -339,25 +339,28 @@
 
   /* ── Dernière liste de courses ────────────────────── */
   function loadDerniereListe() {
-    const r = ref(db,"listes-courses");
+    // Les listes de courses sont enregistrées comme des notes (typeCourses) depuis l'onglet Notes
+    const r = ref(db,"notes");
     onValue(r, snap => {
       const data = snap.val() || {};
       const listes = Object.entries(data)
-        .filter(([k,v]) => !v.supprime)
-        .sort((a,b) => (b[1].createdAt||"").localeCompare(a[1].createdAt||""));
+        .filter(([k,v]) => v.typeCourses && !v.supprime)
+        .sort((a,b) => (b[1].modifiedAt||b[1].createdAt||"").localeCompare(a[1].modifiedAt||a[1].createdAt||""));
 
       const el = document.getElementById("courses-bloc");
       const titre = document.getElementById("courses-titre");
       if (listes.length === 0) { el.style.display="none"; return; }
 
       const [key, liste] = listes[0];
-      titre.textContent = liste.nom || "Liste de courses";
-      const items = Object.values(liste.items || {}).filter(i => !i.coche);
-      const cochés = Object.values(liste.items || {}).filter(i => i.coche);
+      titre.textContent = (liste.titre || "Liste de courses").replace(/^🛒\s*/,"");
+      // Le contenu est une liste de lignes "☐ article" ou "✅ article"
+      const lignes = (liste.contenu||"").split("\n").map(l => l.trim()).filter(Boolean);
+      const items  = lignes.filter(l => !l.startsWith("✅")).map(l => l.replace(/^[☐✅]\s*/,""));
+      const cochés = lignes.filter(l =>  l.startsWith("✅")).map(l => l.replace(/^[☐✅]\s*/,""));
 
       document.getElementById("courses-items").innerHTML =
-        items.map(i => `<span class="course-tag">${escHtml(i.nom||"")}</span>`).join("") +
-        cochés.map(i => `<span class="course-tag fait">${escHtml(i.nom||"")}</span>`).join("");
+        items.map(i => `<span class="course-tag">${escHtml(i)}</span>`).join("") +
+        cochés.map(i => `<span class="course-tag fait">${escHtml(i)}</span>`).join("");
 
       el.style.display = "block";
     });
@@ -1074,7 +1077,7 @@ body {
 <section class="section" id="courses-bloc">
   <div class="section-header">
     <span class="section-titre">🛒 <span id="courses-titre">Liste de courses</span></span>
-    <a href="courses.html" class="section-lien">Voir →</a>
+    <a href="notes.html" class="section-lien">Voir →</a>
   </div>
   <div class="section-body">
     <div id="courses-items"></div>

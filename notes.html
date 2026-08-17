@@ -599,6 +599,11 @@ function clearCameraForm() {
 }
 
 /* ── Formulaire ────────────────────────────── */
+function resetBtnSauver() {
+  var btn = document.querySelector('#modal-overlay .btn-sauver');
+  if (btn) { btn.disabled = false; btn.innerHTML = '💾 Enregistrer'; btn.style.background = ''; }
+}
+
 function ouvrirFormulaire() {
   editKey = null;
   document.getElementById('form-titre').textContent = 'Nouvelle note';
@@ -607,6 +612,7 @@ function ouvrirFormulaire() {
   document.getElementById('note-imp').checked   = false;
   majToggleImp(false);
   clearCameraForm();
+  resetBtnSauver();
   document.getElementById('modal-overlay').style.display = 'flex';
   setTimeout(function(){ document.getElementById('note-titre').focus(); }, 200);
 }
@@ -627,6 +633,7 @@ function ouvrirEdition(key) {
   }
   document.getElementById('note-imp').checked          = !!n.importante;
   majToggleImp(!!n.importante);
+  resetBtnSauver();
   document.getElementById('modal-overlay').style.display = 'flex';
 }
 
