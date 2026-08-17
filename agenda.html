@@ -182,22 +182,28 @@ function renderCalendar() {
   const _t = new Date();
   const today = `${_t.getFullYear()}-${String(_t.getMonth()+1).padStart(2,"0")}-${String(_t.getDate()).padStart(2,"0")}`;
 
-  const evParJour = {};
-  const prefixMois = `${y}-${String(m+1).padStart(2,"0")}`;
+  // Points du calendrier : rond violet pour le travail de Céline, point neutre pour
+  // les autres événements. Les semaines Valentin n'ont PAS de point (juste la case verte).
+  const travailJour = {};   // date -> true (travail de Céline)
+  const autreJour   = {};   // date -> nombre d'autres événements
+  const prefixMois  = `${y}-${String(m+1).padStart(2,"0")}`;
+  const marquerJour = (ds, ev) => {
+    if (!ds.startsWith(prefixMois)) return;
+    if (ev.categorie === "travail" && (ev.qui || "").includes("Céline")) {
+      travailJour[ds] = true;
+    } else {
+      autreJour[ds] = (autreJour[ds] || 0) + 1;
+    }
+  };
   Object.values(allEvents).forEach(ev => {
-    if (!ev.supprime && ev.date) {
-      if (ev.dateFin && ev.dateFin > ev.date) {
-        // Événement multi-jours (ex: vacances) — marquer chaque jour du mois
-        let cur = new Date(ev.date + "T12:00:00");
-        const fin = new Date(ev.dateFin + "T12:00:00");
-        while (cur <= fin) {
-          const ds = cur.toISOString().slice(0,10);
-          if (ds.startsWith(prefixMois)) evParJour[ds] = (evParJour[ds] || 0) + 1;
-          cur.setDate(cur.getDate() + 1);
-        }
-      } else if (ev.date.startsWith(prefixMois)) {
-        evParJour[ev.date] = (evParJour[ev.date] || 0) + 1;
-      }
+    if (ev.supprime || !ev.date) return;
+    if (ev.categorie === "valentin") return;   // Valentin : pas de point, juste la case verte
+    if (ev.dateFin && ev.dateFin > ev.date) {
+      let cur = new Date(ev.date + "T12:00:00");
+      const fin = new Date(ev.dateFin + "T12:00:00");
+      while (cur <= fin) { marquerJour(cur.toISOString().slice(0,10), ev); cur.setDate(cur.getDate() + 1); }
+    } else {
+      marquerJour(ev.date, ev);
     }
   });
 
@@ -231,7 +237,6 @@ function renderCalendar() {
       const isSelected = dateStr === selectedDay;
       const dateObj    = new Date(y, m, d);
       const isValentin = isValentinWeek(dateObj);
-      const nbEv       = evParJour[dateStr] || 0;
       // Vérifier anniversaire ce jour
       const hasAnniv = Object.values(allContacts).some(c =>
         !c.supprime && c.dateNaissance && c.dateNaissance.slice(5) === dateStr.slice(5)
@@ -245,7 +250,9 @@ function renderCalendar() {
       html += `<div class="${cls}" data-date="${dateStr}" onclick="selectDay('${dateStr}')">
         <span class="cal-num">${d}</span>
         ${hasAnniv ? `<span class="cal-anniv-dot" title="Anniversaire">🎂</span>` : ""}
-        ${nbEv > 0 ? `<span class="cal-dot">${nbEv > 1 ? nbEv : ""}</span>` : ""}
+        ${travailJour[dateStr]
+            ? `<span class="cal-dot cal-dot-travail" title="Travail Céline"></span>`
+            : (autreJour[dateStr] > 0 ? `<span class="cal-dot">${autreJour[dateStr] > 1 ? autreJour[dateStr] : ""}</span>` : "")}
       </div>`;
     }
   }
@@ -1332,6 +1339,10 @@ body{ height:auto; min-height:100%; padding-bottom:100px; }
 }
 .cal-cell.selected .cal-dot { background:#fff; color:var(--mauve); }
 .cal-cell.valentin .cal-dot { background:var(--vert-val); }
+/* Rond violet = jour de travail de Céline (même dans une semaine Valentin) */
+.cal-dot-travail { background:var(--mauve-f); width:7px; height:7px; }
+.cal-cell.valentin .cal-dot.cal-dot-travail { background:var(--mauve-f); }
+.cal-cell.selected .cal-dot.cal-dot-travail { background:#fff; }
 .cal-anniv-dot { font-size:8px; line-height:1; margin-top:1px; }
 
 /* légende Valentin */
