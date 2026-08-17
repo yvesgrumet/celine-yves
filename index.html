@@ -410,10 +410,12 @@
     const el   = document.getElementById("nouveaux-liste");
     if (!bloc || !el) return;
 
+    const todayStrNv = new Date().toISOString().slice(0, 10);
     const lignes = nouveaux.map(([key, ev]) => {
       const vus = ev.vus || {};
       const tousVu = _accesPersonnes.length > 0 && _accesPersonnes.every(p => vus[sanitizeKey(p)]);
-      if (tousVu) {
+      const estPasse = ev.date && ev.date < todayStrNv;   // un événement déjà passé ne reste pas "nouveau"
+      if (tousVu || estPasse) {
         update(ref(db, `evenements/${key}`), { isNew: false });
         return "";
       }
