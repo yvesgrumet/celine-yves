@@ -965,6 +965,16 @@ function setDejaTravail() {
 }
 async function creerTravailSemaine(base, joursCoches, an, sem, dejaSet) {
   const lundi = lundoDeSemaine(an, sem);
+  const dLun = dateToStr(lundi), dDim = dateToStr(addJours(lundi, 6));
+  // Remplacer la semaine : retirer les jours de travail déjà enregistrés pour cette
+  // même semaine et cette même personne, pour qu'une re-saisie corrige au lieu d'empiler.
+  Object.entries(allEvents).forEach(([k, v]) => {
+    if (v && !v.supprime && v.categorie === "travail" && v.qui === base.qui &&
+        v.date && v.date >= dLun && v.date <= dDim) {
+      update(ref(db, `evenements/${k}`), { supprime: true, suppressAt: new Date().toISOString() });
+      dejaSet.delete(`${v.date}|${v.heure || ""}`);
+    }
+  });
   for (const jc of joursCoches) {
     const dateJ = addJours(lundi, jc.index);
     const dStr  = dateToStr(dateJ);
