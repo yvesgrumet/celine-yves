@@ -224,6 +224,11 @@
     document.getElementById("date-txt").textContent = `${j} ${d} ${m} ${a}`;
     document.getElementById("heure-txt").textContent = `${h}:${mn}`;
 
+    const gh = now.getHours();
+    const salut = gh < 6 ? "Bonne nuit" : gh < 12 ? "Bonjour" : gh < 18 ? "Bon après-midi" : "Bonsoir";
+    const gEl = document.getElementById("greeting");
+    if (gEl) gEl.textContent = `${salut} 💜`;
+
     const fete = feteJour();
     const el = document.getElementById("fete-txt");
     if (fete) { el.innerHTML = `✨ <strong>${fete}</strong>`; el.style.display="inline"; }
@@ -300,8 +305,6 @@
   /* ── Prochains événements (7 jours) ──────────────── */
   function loadProchains() {
     const today = todayStr();
-    const dans7 = new Date(); dans7.setDate(dans7.getDate()+7);
-    const fin7  = dans7.toISOString().slice(0,10);
     // Catégories récurrentes à exclure des prochains événements
     const CATS_RECURRENTES = ["travail","sport","valentin","ecole"];
     const r = ref(db,"evenements");
@@ -309,8 +312,8 @@
       const data = snap.val() || {};
       const prochains = Object.entries(data)
         .filter(([k,v]) =>
+          v.date &&
           v.date > today &&
-          v.date <= fin7 &&
           !v.supprime &&
           !CATS_RECURRENTES.includes(v.categorie)
         )
@@ -319,13 +322,13 @@
 
       const el = document.getElementById("prochains-liste");
       if (prochains.length === 0) {
-        el.innerHTML = `<p class="rien">Rien dans les 7 prochains jours</p>`;
+        el.innerHTML = `<p class="rien">Aucun événement à venir</p>`;
         return;
       }
       const joursF = ["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];
-      el.innerHTML = prochains.slice(0,5).map(ev => {
+      el.innerHTML = prochains.slice(0,6).map(ev => {
         const d = new Date(ev.date+"T12:00:00");
-        const label = `${joursF[d.getDay()]} ${d.getDate()}`;
+        const label = `${joursF[d.getDay()]} ${d.getDate()}/${d.getMonth()+1}`;
         const h = ev.heure ? ` ${escHtml(ev.heure)}` : "";
         const qui = ev.qui ? `<span class="prochain-qui">${escHtml(ev.qui)}</span>` : "";
         return `<div class="prochain-item">
@@ -459,6 +462,23 @@
     update(ref(db, `evenements/${evKey}`), maj);
   };
 
+  /* ── À améliorer (aperçu accueil) ───────────────── */
+  function loadAmeliorer() {
+    onValue(ref(db,"ameliorer"), snap => {
+      const data = snap.val() || {};
+      ["celine","yves"].forEach(cote => {
+        const items = Object.values(data[cote] || {})
+          .filter(p => p && !p.resolu && !p.supprime)
+          .sort((a,b) => (a.createdAt||"").localeCompare(b.createdAt||""));
+        const el = document.getElementById("amel-"+cote);
+        if (!el) return;
+        if (items.length === 0) { el.innerHTML = `<div class="amel-vide">Rien 👍</div>`; return; }
+        el.innerHTML = items.slice(0,4).map(p => `<div class="amel-pt">${escHtml(p.texte||"")}</div>`).join("")
+          + (items.length > 4 ? `<div class="amel-plus">+${items.length-4} autre(s)</div>` : "");
+      });
+    });
+  }
+
   /* ── Lancement ───────────────────────────────────── */
   loadMeteo();
   checkAnniversaires();
@@ -466,6 +486,7 @@
   loadProchains();
   loadDerniereListe();
   loadNoteImportante();
+  loadAmeliorer();
 
   /* ── Badge + Notifications ────────────────── */
   onValue(ref(db,"evenements"), snap => {
@@ -1009,6 +1030,56 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 .fab:active { transform: scale(0.93); }
+
+/* ═══════════════════════════
+   SALUTATION
+═══════════════════════════ */
+.greeting {
+  font-family: 'Playfair Display', serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 4px;
+  letter-spacing: -0.2px;
+}
+
+/* ═══════════════════════════
+   À AMÉLIORER
+═══════════════════════════ */
+.amel-duo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.amel-col {
+  background: var(--gris-pale);
+  border-radius: 10px;
+  padding: 10px 11px;
+  border-top: 3px solid transparent;
+}
+.amel-col.celine { border-top-color: #3a6bbf; }
+.amel-col.yves   { border-top-color: #2e7d52; }
+.amel-col-nom {
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 7px;
+}
+.amel-col.celine .amel-col-nom { color: #3a6bbf; }
+.amel-col.yves   .amel-col-nom { color: #2e7d52; }
+.amel-liste { display: flex; flex-direction: column; gap: 5px; }
+.amel-pt {
+  font-size: 12.5px;
+  color: var(--texte);
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  line-height: 1.35;
+}
+.amel-pt::before { content: "•"; flex-shrink: 0; }
+.amel-col.celine .amel-pt::before { color: #3a6bbf; }
+.amel-col.yves   .amel-pt::before { color: #2e7d52; }
+.amel-vide { font-size: 12px; color: var(--gris); font-style: italic; }
+.amel-plus { font-size: 11px; color: var(--gris); margin-top: 3px; }
 </style>
 </head>
 <body>
@@ -1033,6 +1104,7 @@ body {
   </div>
 
   <div class="header-info">
+    <div id="greeting" class="greeting">Bonjour 💜</div>
     <div class="date-ligne">
       <span id="heure-txt">--:--</span>
       <span id="date-txt">—</span>
@@ -1109,6 +1181,26 @@ body {
   </div>
   <div class="section-body">
     <div id="prochains-liste"><p class="rien">Chargement…</p></div>
+  </div>
+</section>
+
+<!-- ═══ À AMÉLIORER ═════════════════════════════════ -->
+<section class="section" id="ameliorer-bloc">
+  <div class="section-header">
+    <span class="section-titre">📈 À améliorer</span>
+    <a href="ameliorer.html" class="section-lien">Progrès →</a>
+  </div>
+  <div class="section-body">
+    <div class="amel-duo">
+      <div class="amel-col celine">
+        <div class="amel-col-nom">Céline</div>
+        <div id="amel-celine" class="amel-liste"><p class="rien">…</p></div>
+      </div>
+      <div class="amel-col yves">
+        <div class="amel-col-nom">Yves</div>
+        <div id="amel-yves" class="amel-liste"><p class="rien">…</p></div>
+      </div>
+    </div>
   </div>
 </section>
 
