@@ -704,18 +704,24 @@ window.majFormCat = function() {
     planDeb = { annee:0, semaine:0 };
     planFin = { annee:0, semaine:0 };
     planTravailSaufSems = new Set();
+    selectedQui = new Set(["Céline"]);   // le planning Travail est celui de Céline seule
+    renderQuiButtons();
     renderPlanningTravail();
     renderTravailSaufListe();
   } else if (cat === "valentin") {
     datHRow.style.display = "none";
     valRow.style.display  = "block";
+    valentinExceptions = {};
     renderValentinPanel();
   } else if (cat === "sport") {
     datHRow.style.display  = "none";
     sportRow.style.display = "block";
+    sportJours    = new Set();
+    sportSaufSems = new Set();
     renderSportPanel();
   } else if (cat === "ecole") {
     datHRow.style.display  = "none";
+    ecolePeriodes = [];
     if (ecoleRow) { ecoleRow.style.display = "block"; renderEcolePanel(); }
   } else if (cat === "vacances") {
     if (vacFinRow) vacFinRow.style.display = "block";
@@ -940,7 +946,13 @@ window.sauvegarderEv = async function() {
         hdeb, hfin
       });
     }
-    if (joursCochesMod.length === 0) { alert("Cochez au moins un jour"); return; }
+    if (joursCochesMod.length === 0) { alert("Cochez au moins un jour"); resetBtnSauver(); return; }
+    // Anti-doublon : créneaux Travail déjà existants (date|heure)
+    const dejaTravail = new Set(
+      Object.values(allEvents)
+        .filter(v => v && !v.supprime && v.categorie === "travail" && v.date)
+        .map(v => `${v.date}|${v.heure || ""}`)
+    );
     let curAn = planDeb.annee, curSem = planDeb.semaine;
     const maxIter = 200; let iter = 0;
     while (iter++ < maxIter) {
@@ -948,9 +960,13 @@ window.sauvegarderEv = async function() {
         const lundi = lundoDeSemaine(curAn, curSem);
         for (const jc of joursCochesMod) {
           const dateJ = addJours(lundi, jc.index);
+          const dStr  = dateToStr(dateJ);
+          const cle   = `${dStr}|${jc.hdeb || ""}`;
+          if (dejaTravail.has(cle)) continue;   // déjà présent → on ne recrée pas
+          dejaTravail.add(cle);
           const heureLabel = (jc.hdeb && jc.hfin) ? `${jc.hdeb}–${jc.hfin}` : (jc.hdeb || null);
           await push(ref(db,"evenements"), {
-            ...base, date: dateToStr(dateJ),
+            ...base, date: dStr,
             heure: jc.hdeb || null, heureFin: jc.hfin || null,
             note: base.note || (heureLabel ? `Travail ${heureLabel}` : null),
             createdAt: new Date().toISOString()
@@ -965,6 +981,12 @@ window.sauvegarderEv = async function() {
     // Créer un événement par semaine où Valentin est présent
     const maxSem = 52;
     let nbCrees = 0;
+    // Anti-doublon : semaines Valentin déjà existantes (date de début du lundi)
+    const dejaValentin = new Set(
+      Object.values(allEvents)
+        .filter(v => v && !v.supprime && v.categorie === "valentin" && v.date)
+        .map(v => v.date)
+    );
     for (let s = 1; s <= maxSem; s++) {
       const key = `${valentinAnnee}-W${String(s).padStart(2,"0")}`;
       const estPaire = s % 2 === 0;
@@ -974,6 +996,8 @@ window.sauvegarderEv = async function() {
       if (!present) continue;
       const lundi = lundoDeSemaine(valentinAnnee, s);
       const dimanche = addJours(lundi, 6);
+      if (dejaValentin.has(dateToStr(lundi))) continue;
+      dejaValentin.add(dateToStr(lundi));
       await push(ref(db,"evenements"), {
         ...base,
         date: dateToStr(lundi),
@@ -984,13 +1008,19 @@ window.sauvegarderEv = async function() {
       });
       nbCrees++;
     }
-    if (nbCrees === 0) { alert("Aucune semaine sélectionnée"); return; }
+    if (nbCrees === 0) { alert("Aucune semaine sélectionnée"); resetBtnSauver(); return; }
 
   } else if (cat === "sport") {
-    if (sportJours.size === 0) { alert("Sélectionnez au moins un jour"); return; }
+    if (sportJours.size === 0) { alert("Sélectionnez au moins un jour"); resetBtnSauver(); return; }
     const discipline  = document.getElementById("ev-note").value.trim() || "";
     const sportHDeb   = document.getElementById("sport-heure-deb").value || null;
     const sportHFin   = document.getElementById("sport-heure-fin").value || null;
+    // Anti-doublon : créneaux Sport déjà existants (date|heure|discipline)
+    const dejaSport = new Set(
+      Object.values(allEvents)
+        .filter(v => v && !v.supprime && v.categorie === "sport" && v.date)
+        .map(v => `${v.date}|${v.heure || ""}|${v.note || ""}`)
+    );
     let curSem = sportSemDeb;
     const maxIter = 200; let iter = 0;
     while (iter++ < maxIter && curSem <= sportSemFin) {
@@ -999,9 +1029,13 @@ window.sauvegarderEv = async function() {
         for (const jKey of sportJours) {
           const idx = JOURS_PLANNING.findIndex(j => j.key === jKey);
           const dateJ = addJours(lundi, idx);
+          const dStr  = dateToStr(dateJ);
+          const cle   = `${dStr}|${sportHDeb || ""}|${discipline || ""}`;
+          if (dejaSport.has(cle)) continue;
+          dejaSport.add(cle);
           await push(ref(db,"evenements"), {
             ...base,
-            date:     dateToStr(dateJ),
+            date:     dStr,
             heure:    sportHDeb,
             heureFin: sportHFin,
             note:     discipline || null,
@@ -1013,7 +1047,7 @@ window.sauvegarderEv = async function() {
     }
 
   } else if (cat === "ecole") {
-    if (ecolePeriodes.length === 0) { alert("Ajoutez au moins une période de vacances"); return; }
+    if (ecolePeriodes.length === 0) { alert("Ajoutez au moins une période de vacances"); resetBtnSauver(); return; }
     for (const periode of ecolePeriodes) {
       // Créer un événement par jour de la période (lundi-vendredi uniquement)
       let cur = new Date(periode.dateDebut + "T12:00:00");
@@ -1039,9 +1073,9 @@ window.sauvegarderEv = async function() {
 
   } else {
     const date = document.getElementById("ev-date").value;
-    if (!date) { alert("La date est obligatoire"); return; }
+    if (!date) { alert("La date est obligatoire"); resetBtnSauver(); return; }
     const dateFin = document.getElementById("ev-date-fin").value || null;
-    if (cat === "vacances" && !dateFin) { alert("La date de fin est obligatoire pour les vacances"); return; }
+    if (cat === "vacances" && !dateFin) { alert("La date de fin est obligatoire pour les vacances"); resetBtnSauver(); return; }
     const data = {
       ...base,
       date,
